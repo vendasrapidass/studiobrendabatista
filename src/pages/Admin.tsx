@@ -17,7 +17,7 @@ const Admin = () => {
   }, []);
 
   const handleLogin = () => {
-    if (password === '1234') {
+    if (password === '1819') {
       setIsAuthenticated(true);
       setPassword('');
       setError(false);
