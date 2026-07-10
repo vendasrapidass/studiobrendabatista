@@ -1,0 +1,733 @@
+import { google } from 'googleapis';
+import { createClient } from '@supabase/supabase-js';
+
+// Configuração do Google Auth com a Service Account
+const auth = new google.auth.GoogleAuth({
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  },
+  scopes: ['https://www.googleapis.com/auth/calendar'],
+});
+
+const calendar = google.calendar({ version: 'v3', auth });
+
+// Configuração do Supabase Client
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
+
+// Função para buscar o ID da agenda dinâmica do estúdio no Supabase
+async function getDynamicCalendarId(): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from('studio_config')
+      .select('google_calendar_id')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data?.google_calendar_id) {
+      return data.google_calendar_id;
+    }
+  } catch (err) {
+    console.error("Error fetching dynamic calendarId:", err);
+  }
+  return 'guilhermesuzena10@gmail.com'; // fallback padrão
+}
+
+function parseDateTimeToSaoPaulo(isoString: string) {
+  try {
+    const dObj = new Date(isoString);
+    const formatter = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(dObj);
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const hour = parts.find(p => p.type === 'hour')?.value || '';
+    const minute = parts.find(p => p.type === 'minute')?.value || '00';
+    
+    return {
+      date: `${day}/${month}/${year}`,
+      time: `${hour}:${minute}`
+    };
+  } catch (err) {
+    console.error("Error parsing date-time:", err);
+    return null;
+  }
+}
+
+function getServicePrice(service: string): number {
+  const cleanSvc = service.toLowerCase().trim();
+  
+  // Remoção cílios
+  if (cleanSvc.includes('remoção') || cleanSvc.includes('remocao')) return 30;
+  
+  // Design - Sobrancelha
+  if (cleanSvc.includes('henna')) return 45;
+  if (cleanSvc.includes('design personalizado')) return 35;
+  
+  // Limpeza de pele
+  if (cleanSvc.includes('limpeza de pele')) return 100;
+  
+  // Cílios - Manutenção
+  if (cleanSvc.includes('manutenção') || cleanSvc.includes('manutencao')) {
+    const isAte20 = cleanSvc.includes('até 20') || cleanSvc.includes('ate 20');
+    if (cleanSvc.includes('brasileiro')) return isAte20 ? 115 : 125;
+    if (cleanSvc.includes('egípcio') || cleanSvc.includes('egipcio')) {
+      if (cleanSvc.includes('mega')) return isAte20 ? 135 : 140;
+      return isAte20 ? 125 : 135;
+    }
+    if (cleanSvc.includes('glow') || cleanSvc.includes('rímel') || cleanSvc.includes('rimel')) return isAte20 ? 120 : 140;
+    if (cleanSvc.includes('fox')) return isAte20 ? 120 : 140;
+    if (cleanSvc.includes('fada')) return isAte20 ? 140 : 145;
+    return isAte20 ? 115 : 125; // default fallback for maintenance
+  }
+  
+  // Cílios - Aplicação
+  if (cleanSvc.includes('volume brasileiro')) return 160;
+  if (cleanSvc.includes('volume egípcio') || cleanSvc.includes('volume egipcio')) return 165;
+  if (cleanSvc.includes('glow') || cleanSvc.includes('rímel') || cleanSvc.includes('rimel')) return 165;
+  if (cleanSvc.includes('fox')) return 165;
+  if (cleanSvc.includes('mega egípcio') || cleanSvc.includes('mega egipcio')) return 180;
+  if (cleanSvc.includes('mega fada')) return 185;
+  if (cleanSvc.includes('mega brasileiro')) return 175;
+  if (cleanSvc.includes('lifting')) return 110;
+  if (cleanSvc.includes('lamination') || cleanSvc.includes('brow')) return 110;
+  
+  return 0;
+}
+
+export default async function handler(req: any, res: any) {
+  // CORS Headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  // Resolve dynamic calendarId from database
+  const activeCalendarId = await getDynamicCalendarId();
+
+  try {
+    // ----------------------------------------------------
+    // GET: Buscar eventos (agendamentos e bloqueios)
+    // ----------------------------------------------------
+    if (req.method === 'GET') {
+      const now = new Date();
+      // Período de busca padrão: de 30 dias atrás até 90 dias no futuro
+      const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      const timeMax = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
+
+      if (req.query.realtime === 'true') {
+        // ----------------------------------------------------
+        // REALTIME: Consultar Google Calendar diretamente (camada extra de validação)
+        // ----------------------------------------------------
+        const response = await calendar.events.list({
+          calendarId: activeCalendarId,
+          timeMin,
+          timeMax,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+
+        const events = response.data.items || [];
+        const bookings: any[] = [];
+        const blocks: any[] = [];
+
+        for (const event of events) {
+          if (!event.id) continue;
+
+          const shared = event.extendedProperties?.shared;
+          const summary = event.summary || '';
+          const summaryLower = summary.toLowerCase();
+
+          const hasBlockKeyword = summaryLower.includes('folga') || 
+                                  summaryLower.includes('bloqueado') || 
+                                  summaryLower.includes('bloqueio') ||
+                                  summaryLower.includes('indisponível') ||
+                                  summaryLower.includes('indisponivel');
+          
+          const hasDashSeparator = summary.includes(' - ');
+          const isBlock = shared?.type === 'block' || hasBlockKeyword || !hasDashSeparator;
+          const endStr = event.end?.dateTime || event.end?.date;
+          const endDate = endStr ? new Date(endStr) : new Date();
+          const isPast = endDate.getTime() < now.getTime();
+
+          if (isBlock) {
+            const allDay = shared?.allDay === 'true' || !!event.start?.date;
+            let startVal = shared?.start;
+            let endVal = shared?.end;
+            let dateVal = shared?.date || '';
+
+            if (!allDay && event.start?.dateTime && event.end?.dateTime) {
+              const parsedStart = parseDateTimeToSaoPaulo(event.start.dateTime);
+              const parsedEnd = parseDateTimeToSaoPaulo(event.end.dateTime);
+              if (parsedStart && parsedEnd) {
+                dateVal = parsedStart.date;
+                startVal = parsedStart.time;
+                endVal = parsedEnd.time;
+              }
+            }
+
+            if (!dateVal) {
+              const startString = event.start?.date || event.start?.dateTime;
+              if (startString) {
+                const [y, m, d] = startString.split('T')[0].split('-');
+                dateVal = `${d}/${m}/${y}`;
+              }
+            }
+            if (!dateVal) {
+              const dObj = new Date();
+              const pad = (n: number) => String(n).padStart(2, '0');
+              dateVal = `${pad(dObj.getDate())}/${pad(dObj.getMonth() + 1)}/${dObj.getFullYear()}`;
+            }
+
+            blocks.push({
+              id: shared?.id || event.id,
+              date: shared?.date || dateVal,
+              allDay,
+              start: shared?.start || startVal,
+              end: shared?.end || endVal,
+              reason: shared?.reason || summary.replace(/^(Bloqueio - |AGENDA BLOQUEADA - )/i, '') || 'Bloqueio',
+            });
+          } else {
+            let service = '';
+            let name = 'Cliente Google';
+            let phone = '';
+            let price = 0;
+            let status = 'accepted';
+
+            if (shared) {
+              service = shared.service || '';
+              name = shared.name || '';
+              phone = shared.phone || '';
+            } else {
+              const parts = summary.split(' - ');
+              if (parts.length >= 2) {
+                service = parts.slice(0, -1).join(' - ').trim();
+                name = parts[parts.length - 1].trim();
+              } else {
+                service = summary;
+              }
+            }
+
+            if (shared?.price) {
+              price = Number(shared.price);
+            } else {
+              const desc = event.description || '';
+              const priceDescMatch = desc.match(/Valor:\s*R\$\s*(\d+)/i) || desc.match(/Valor:\s*(\d+)/i);
+              if (priceDescMatch) {
+                price = Number(priceDescMatch[1]);
+              } else {
+                const rsMatch = summary.match(/R\$\s*(\d+)(?:[.,]\d+)?/i);
+                if (rsMatch) {
+                  price = Number(rsMatch[1]);
+                } else {
+                  const numMatch = summary.match(/\b(\d+)\b/);
+                  if (numMatch) {
+                    price = Number(numMatch[1]);
+                  }
+                }
+              }
+
+              if (price === 0 && service) {
+                price = getServicePrice(service);
+              }
+            }
+
+            if (isPast) {
+              status = 'completed';
+            } else {
+              let parsedStatus = 'accepted';
+              if (shared?.status) {
+                parsedStatus = shared.status;
+              } else {
+                const desc = event.description || '';
+                const statusMatch = desc.match(/Status:\s*(.*)/i);
+                if (statusMatch) {
+                  parsedStatus = statusMatch[1].trim();
+                } else if (summary.includes('[Confirmado]')) {
+                  parsedStatus = 'accepted';
+                } else if (summary.includes('[Concluído]')) {
+                  parsedStatus = 'completed';
+                }
+              }
+              status = parsedStatus === 'completed' ? 'completed' : 'accepted';
+            }
+
+            let dateVal = '';
+            let timeVal = '';
+
+            if (event.start?.dateTime) {
+              const parsed = parseDateTimeToSaoPaulo(event.start.dateTime);
+              if (parsed) {
+                dateVal = parsed.date;
+                timeVal = parsed.time;
+              }
+            } else if (event.start?.date) {
+              const [y, m, d] = event.start.date.split('-');
+              dateVal = `${d}/${m}/${y}`;
+              timeVal = '08:00';
+            }
+
+            if (!dateVal) {
+              const dObj = new Date();
+              const pad = (n: number) => String(n).padStart(2, '0');
+              dateVal = `${pad(dObj.getDate())}/${pad(dObj.getMonth() + 1)}/${dObj.getFullYear()}`;
+            }
+
+            bookings.push({
+              id: shared?.id || event.id,
+              service,
+              price,
+              date: shared?.date || dateVal,
+              time: shared?.time || timeVal,
+              name,
+              phone,
+              status,
+            });
+          }
+        }
+
+        return res.status(200).json({ bookings, blocks });
+      } else {
+        // ----------------------------------------------------
+        // DATABASE: Consultar registros do Supabase (Dashboard Admin)
+        // ----------------------------------------------------
+        const { data: dbEvents, error: dbError } = await supabase
+          .from('appointments')
+          .select('*')
+          .neq('status', 'cancelled')
+          .gte('data_hora_inicio', timeMin)
+          .lte('data_hora_inicio', timeMax);
+
+        if (dbError) {
+          throw dbError;
+        }
+
+        const bookings: any[] = [];
+        const blocks: any[] = [];
+
+        for (const item of dbEvents || []) {
+          const parsedStart = parseDateTimeToSaoPaulo(item.data_hora_inicio);
+          const parsedEnd = parseDateTimeToSaoPaulo(item.data_hora_fim);
+
+          if (item.status === 'blocked') {
+            blocks.push({
+              id: item.id,
+              date: parsedStart ? parsedStart.date : '',
+              allDay: item.duracao_minutos >= 1440,
+              start: parsedStart ? parsedStart.time : '',
+              end: parsedEnd ? parsedEnd.time : '',
+              reason: item.servico_nome || 'Bloqueio',
+            });
+          } else {
+            bookings.push({
+              id: item.id,
+              service: item.servico_nome || '',
+              price: getServicePrice(item.servico_nome || ''),
+              date: parsedStart ? parsedStart.date : '',
+              time: parsedStart ? parsedStart.time : '',
+              name: item.cliente_nome || '',
+              phone: item.cliente_telefone || '',
+              status: item.status,
+            });
+          }
+        }
+
+        return res.status(200).json({ bookings, blocks });
+      }
+    }
+
+    // ----------------------------------------------------
+    // POST: Criar novo evento (agendamento ou bloqueio)
+    // ----------------------------------------------------
+    if (req.method === 'POST') {
+      const { type, booking, block, duration } = req.body;
+
+      if (type === 'booking') {
+        const id = booking.id;
+        const eventId = id.replace(/-/g, '').toLowerCase();
+
+        const [d, m, y] = booking.date.split('/');
+        const isoDate = `${y}-${m}-${d}`;
+        const startDateTime = `${isoDate}T${booking.time}:00-03:00`;
+
+        const startMs = new Date(startDateTime).getTime();
+        const endMs = startMs + (duration || 180) * 60 * 1000;
+        const endDateTime = new Date(endMs).toISOString();
+
+        // --- CHECK DOUBLE BOOKING ON SUPABASE ---
+        const dayStart = `${isoDate}T00:00:00-03:00`;
+        const dayEnd = `${isoDate}T23:59:59-03:00`;
+
+        const { data: existingEvents, error: existingErr } = await supabase
+          .from('appointments')
+          .select('*')
+          .neq('status', 'cancelled')
+          .gte('data_hora_inicio', dayStart)
+          .lte('data_hora_inicio', dayEnd);
+
+        if (existingErr) throw existingErr;
+
+        const timeToMinutes = (t: string) => {
+          const [h, mi] = t.split(':').map(Number);
+          return h * 60 + mi;
+        };
+
+        const newStart = timeToMinutes(booking.time);
+        const newEnd = newStart + (duration || 180);
+
+        for (const existing of existingEvents || []) {
+          if (existing.id === id) continue;
+
+          const isBlock = existing.status === 'blocked';
+
+          if (isBlock) {
+            const allDay = existing.duracao_minutos >= 1440;
+            if (allDay) {
+              return res.status(409).json({ error: 'slot_occupied', message: 'Este dia está bloqueado para agendamentos.' });
+            }
+            const blockParsedStart = parseDateTimeToSaoPaulo(existing.data_hora_inicio);
+            const blockParsedEnd = parseDateTimeToSaoPaulo(existing.data_hora_fim);
+            if (blockParsedStart && blockParsedEnd) {
+              const bStart = timeToMinutes(blockParsedStart.time);
+              const bEnd = timeToMinutes(blockParsedEnd.time);
+              if (Math.max(newStart, bStart) < Math.min(newEnd, bEnd)) {
+                return res.status(409).json({ error: 'slot_occupied', message: 'Este horário está em um período bloqueado.' });
+              }
+            }
+          } else {
+            const bookingParsedStart = parseDateTimeToSaoPaulo(existing.data_hora_inicio);
+            if (bookingParsedStart) {
+              const bStart = timeToMinutes(bookingParsedStart.time);
+              const bDuration = existing.duracao_minutos;
+              const bEnd = bStart + bDuration;
+
+              if (Math.max(newStart, bStart) < Math.min(newEnd, bEnd)) {
+                return res.status(409).json({ error: 'slot_occupied', message: 'Este horário já foi agendado por outra pessoa.' });
+              }
+            }
+          }
+        }
+        // --- END CHECK DOUBLE BOOKING ---
+
+        // 1. Inserir no Supabase primeiro
+        const { error: insertErr } = await supabase
+          .from('appointments')
+          .insert({
+            id,
+            cliente_nome: booking.name,
+            cliente_telefone: booking.phone,
+            servico_nome: booking.service,
+            duracao_minutos: duration || 180,
+            data_hora_inicio: startDateTime,
+            data_hora_fim: endDateTime,
+            status: booking.status || 'accepted',
+            google_event_id: eventId
+          });
+
+        if (insertErr) throw insertErr;
+
+        // 2. Criar evento no Google Calendar para espelhamento
+        const title = `${booking.service} - ${booking.name}`;
+        const description = `Cliente: ${booking.name}\nContato: ${booking.phone}\nValor: R$ ${booking.price},00`;
+
+        await calendar.events.insert({
+          calendarId: activeCalendarId,
+          requestBody: {
+            id: eventId,
+            summary: title,
+            description,
+            start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+            end: { dateTime: new Date(endMs).toISOString(), timeZone: 'America/Sao_Paulo' },
+            extendedProperties: {
+              shared: {
+                id,
+                type: 'booking',
+                service: booking.service,
+                name: booking.name,
+                phone: booking.phone,
+                price: String(booking.price),
+                status: booking.status,
+                date: booking.date,
+                time: booking.time,
+              },
+            },
+          },
+        });
+
+        return res.status(201).json({ success: true, eventId });
+      }
+
+      if (type === 'block') {
+        const id = block.id;
+        const eventId = id.replace(/-/g, '').toLowerCase();
+
+        const [d, m, y] = block.date.split('/');
+        const isoDate = `${y}-${m}-${d}`;
+
+        let startDateTime: string;
+        let endDateTime: string;
+        let duracao = 1440;
+
+        if (block.allDay) {
+          startDateTime = `${isoDate}T00:00:00-03:00`;
+          endDateTime = `${isoDate}T23:59:59-03:00`;
+        } else {
+          startDateTime = `${isoDate}T${block.start}:00-03:00`;
+          endDateTime = `${isoDate}T${block.end}:00-03:00`;
+          duracao = Math.round((new Date(endDateTime).getTime() - new Date(startDateTime).getTime()) / 60000);
+        }
+
+        // 1. Inserir no Supabase
+        const { error: insertErr } = await supabase
+          .from('appointments')
+          .insert({
+            id,
+            cliente_nome: null,
+            cliente_telefone: null,
+            servico_nome: block.reason || 'Bloqueio',
+            duracao_minutos: duracao,
+            data_hora_inicio: startDateTime,
+            data_hora_fim: endDateTime,
+            status: 'blocked',
+            google_event_id: eventId
+          });
+
+        if (insertErr) throw insertErr;
+
+        // 2. Criar no Google Calendar
+        const title = `Bloqueio - ${block.reason || 'Indisponível'}`;
+        let start: any;
+        let end: any;
+
+        if (block.allDay) {
+          start = { date: isoDate };
+          const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+          dateObj.setDate(dateObj.getDate() + 1);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const nextDayStr = `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+          end = { date: nextDayStr };
+        } else {
+          start = { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' };
+          end = { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' };
+        }
+
+        await calendar.events.insert({
+          calendarId: activeCalendarId,
+          requestBody: {
+            id: eventId,
+            summary: title,
+            description: `Bloqueio de Agenda\nMotivo: ${block.reason}`,
+            start,
+            end,
+            extendedProperties: {
+              shared: {
+                id,
+                type: 'block',
+                reason: block.reason,
+                date: block.date,
+                allDay: String(block.allDay),
+                start: block.start || '',
+                end: block.end || '',
+              },
+            },
+          },
+        });
+
+        return res.status(201).json({ success: true, eventId });
+      }
+    }
+
+    // ----------------------------------------------------
+    // PUT: Atualizar evento existente (status/detalhes)
+    // ----------------------------------------------------
+    if (req.method === 'PUT') {
+      const { id, type, booking, block, duration } = req.body;
+      const eventId = id.replace(/-/g, '').toLowerCase();
+
+      if (type === 'booking') {
+        const [d, m, y] = booking.date.split('/');
+        const isoDate = `${y}-${m}-${d}`;
+        const startDateTime = `${isoDate}T${booking.time}:00-03:00`;
+
+        const startMs = new Date(startDateTime).getTime();
+        const endMs = startMs + (duration || 180) * 60 * 1000;
+        const endDateTime = new Date(endMs).toISOString();
+
+        // 1. Atualizar no Supabase
+        const { error: updateErr } = await supabase
+          .from('appointments')
+          .update({
+            cliente_nome: booking.name,
+            cliente_telefone: booking.phone,
+            servico_nome: booking.service,
+            duracao_minutos: duration || 180,
+            data_hora_inicio: startDateTime,
+            data_hora_fim: endDateTime,
+            status: booking.status,
+          })
+          .eq('id', id);
+
+        if (updateErr) throw updateErr;
+
+        // 2. Atualizar no Google Calendar
+        let suffix = '';
+        if (booking.status === 'accepted') suffix = ' [Confirmado]';
+        else if (booking.status === 'completed') suffix = ' [Concluído]';
+
+        const title = `${booking.service} - ${booking.name}${suffix}`;
+        const description = `Cliente: ${booking.name}\nContato: ${booking.phone}\nValor: R$ ${booking.price},00`;
+
+        await calendar.events.update({
+          calendarId: activeCalendarId,
+          eventId,
+          requestBody: {
+            summary: title,
+            description,
+            start: { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' },
+            end: { dateTime: new Date(endMs).toISOString(), timeZone: 'America/Sao_Paulo' },
+            extendedProperties: {
+              shared: {
+                id,
+                type: 'booking',
+                service: booking.service,
+                name: booking.name,
+                phone: booking.phone,
+                price: String(booking.price),
+                status: booking.status,
+                date: booking.date,
+                time: booking.time,
+              },
+            },
+          },
+        });
+
+        return res.status(200).json({ success: true });
+      }
+
+      if (type === 'block') {
+        const [d, m, y] = block.date.split('/');
+        const isoDate = `${y}-${m}-${d}`;
+
+        let startDateTime: string;
+        let endDateTime: string;
+        let duracao = 1440;
+
+        if (block.allDay) {
+          startDateTime = `${isoDate}T00:00:00-03:00`;
+          endDateTime = `${isoDate}T23:59:59-03:00`;
+        } else {
+          startDateTime = `${isoDate}T${block.start}:00-03:00`;
+          endDateTime = `${isoDate}T${block.end}:00-03:00`;
+          duracao = Math.round((new Date(endDateTime).getTime() - new Date(startDateTime).getTime()) / 60000);
+        }
+
+        // 1. Atualizar no Supabase
+        const { error: updateErr } = await supabase
+          .from('appointments')
+          .update({
+            servico_nome: block.reason || 'Bloqueio',
+            duracao_minutos: duracao,
+            data_hora_inicio: startDateTime,
+            data_hora_fim: endDateTime,
+          })
+          .eq('id', id);
+
+        if (updateErr) throw updateErr;
+
+        // 2. Atualizar no Google Calendar
+        const title = `Bloqueio - ${block.reason || 'Indisponível'}`;
+        let start: any;
+        let end: any;
+
+        if (block.allDay) {
+          start = { date: isoDate };
+          const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+          dateObj.setDate(dateObj.getDate() + 1);
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const nextDayStr = `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+          end = { date: nextDayStr };
+        } else {
+          start = { dateTime: startDateTime, timeZone: 'America/Sao_Paulo' };
+          end = { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' };
+        }
+
+        await calendar.events.update({
+          calendarId: activeCalendarId,
+          eventId,
+          requestBody: {
+            summary: title,
+            description: `Bloqueio de Agenda\nMotivo: ${block.reason}`,
+            start,
+            end,
+            extendedProperties: {
+              shared: {
+                id,
+                type: 'block',
+                reason: block.reason,
+                date: block.date,
+                allDay: String(block.allDay),
+                start: block.start || '',
+                end: block.end || '',
+              },
+            },
+          },
+        });
+
+        return res.status(200).json({ success: true });
+      }
+    }
+
+    // ----------------------------------------------------
+    // DELETE: Excluir evento (agendamento ou bloqueio)
+    // ----------------------------------------------------
+    if (req.method === 'DELETE') {
+      const id = (req.query.id as string) || req.body.id;
+      if (!id) {
+        return res.status(400).json({ error: 'ID is required' });
+      }
+      const eventId = id.replace(/-/g, '').toLowerCase();
+
+      // 1. Excluir do Supabase
+      const { error: deleteErr } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', id);
+
+      if (deleteErr) throw deleteErr;
+
+      // 2. Excluir do Google Calendar
+      try {
+        await calendar.events.delete({
+          calendarId: activeCalendarId,
+          eventId,
+        });
+      } catch (err: any) {
+        if (err.code !== 404) {
+          throw err;
+        }
+      }
+
+      return res.status(200).json({ success: true });
+    }
+
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (error: any) {
+    console.error('Google Calendar Sync Error:', error);
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
+  }
+}
