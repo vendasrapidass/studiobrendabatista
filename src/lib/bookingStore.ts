@@ -62,3 +62,55 @@ export function removeCompleted(id: string): Booking | undefined {
   saveCompleted(completed.filter(b => b.id !== id));
   return removed;
 }
+
+// Weekday Slots Whitelist Configuration (Local Fallback)
+const SLOTS_KEY = 'studiobrenda_weekday_slots';
+
+export interface WeekdaySlot {
+  id?: string;
+  weekday: number;
+  time: string;
+}
+
+export function getLocalWeekdaySlots(): WeekdaySlot[] {
+  return JSON.parse(localStorage.getItem(SLOTS_KEY) || '[]');
+}
+
+export function saveLocalWeekdaySlots(slots: WeekdaySlot[]): void {
+  localStorage.setItem(SLOTS_KEY, JSON.stringify(slots));
+}
+
+export function addLocalWeekdaySlot(slot: WeekdaySlot): void {
+  const slots = getLocalWeekdaySlots();
+  if (!slots.some(s => s.weekday === slot.weekday && s.time === slot.time)) {
+    slots.push(slot);
+    saveLocalWeekdaySlots(slots);
+  }
+}
+
+export function removeLocalWeekdaySlot(weekday: number, time: string): void {
+  const slots = getLocalWeekdaySlots().filter(s => !(s.weekday === weekday && s.time === time));
+  saveLocalWeekdaySlots(slots);
+}
+
+export function clearLocalWeekdaySlotsForDay(weekday: number): void {
+  const slots = getLocalWeekdaySlots().filter(s => s.weekday !== weekday);
+  saveLocalWeekdaySlots(slots);
+}
+
+export function copyLocalWeekdaySlots(fromWeekday: number, toWeekdays: number[]): void {
+  const slots = getLocalWeekdaySlots();
+  const sourceTimes = slots.filter(s => s.weekday === fromWeekday).map(s => s.time);
+  
+  // Remove target weekdays
+  let newSlots = slots.filter(s => !toWeekdays.includes(s.weekday));
+  
+  // Add new copies
+  toWeekdays.forEach(targetDay => {
+    sourceTimes.forEach(time => {
+      newSlots.push({ weekday: targetDay, time });
+    });
+  });
+  
+  saveLocalWeekdaySlots(newSlots);
+}

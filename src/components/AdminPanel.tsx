@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Booking, SERVICES, generateWhatsAppUrl, formatPhone, ScheduleBlock } from '@/lib/types';
-import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock } from '@/lib/bookingStore';
+import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock, getLocalWeekdaySlots, saveLocalWeekdaySlots, addLocalWeekdaySlot, removeLocalWeekdaySlot, clearLocalWeekdaySlotsForDay, copyLocalWeekdaySlots } from '@/lib/bookingStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, DollarSign, Sparkles, Scissors, TrendingUp, ArrowLeft, Plus, X, Check, Clock, Pencil, Trash2, Phone, Search, Settings } from 'lucide-react';
@@ -8,7 +8,7 @@ import { CalendarDays, DollarSign, Sparkles, Scissors, TrendingUp, ArrowLeft, Pl
 const REFUSE_REASONS = ['Imprevisto', 'Indisponibilidade', 'Problema pessoal', 'Horário não disponível'];
 
 type FilterType = 'today' | 'week' | 'month' | 'year';
-type TabType = 'bookings' | 'dashboard' | 'add' | 'settings';
+type TabType = 'bookings' | 'dashboard' | 'add' | 'settings' | 'slots';
 
 const AdminPanel = () => {
   const navigate = useNavigate();
@@ -61,6 +61,131 @@ const AdminPanel = () => {
   const [ownerEmail, setOwnerEmail] = useState('');
   const [isProvisioning, setIsProvisioning] = useState(false);
 
+  // Slots Whitelist editor state
+  const [whitelistSlots, setWhitelistSlots] = useState<{ id?: string; weekday: number; time: string }[]>([]);
+  const [selectedWeekday, setSelectedWeekday] = useState<number>(1);
+  const [newSlotTime, setNewSlotTime] = useState<string>('08:00');
+  const [isSavingSlot, setIsSavingSlot] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
+  const [targetDaysForCopy, setTargetDaysForCopy] = useState<number[]>([]);
+
+  const WEEKDAYS = [
+    { value: 1, label: 'Segunda-feira' },
+    { value: 2, label: 'Terça-feira' },
+    { value: 3, label: 'Quarta-feira' },
+    { value: 4, label: 'Quinta-feira' },
+    { value: 5, label: 'Sexta-feira' },
+    { value: 6, label: 'Sábado' },
+    { value: 0, label: 'Domingo' }
+  ];
+
+  const handleAddSlot = () => {
+    if (!newSlotTime) return;
+    if (whitelistSlots.some(s => s.weekday === selectedWeekday && s.time === newSlotTime)) {
+      toast.warning("Este horário já está cadastrado para este dia.");
+      return;
+    }
+    setIsSavingSlot(true);
+    addLocalWeekdaySlot({ weekday: selectedWeekday, time: newSlotTime });
+    setWhitelistSlots(getLocalWeekdaySlots());
+
+    fetch('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'add_slot', weekday: selectedWeekday, time: newSlotTime })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Erro no servidor');
+        return res.json();
+      })
+      .then(() => {
+        toast.success("Horário adicionado com sucesso!");
+        reload();
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Salvo localmente. Erro ao sincronizar.");
+      })
+      .finally(() => setIsSavingSlot(false));
+  };
+
+  const handleDeleteSlot = (weekday: number, time: string) => {
+    removeLocalWeekdaySlot(weekday, time);
+    setWhitelistSlots(getLocalWeekdaySlots());
+
+    fetch('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'delete_slot', weekday, time })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Erro no servidor');
+        return res.json();
+      })
+      .then(() => {
+        toast.success("Horário excluído!");
+        reload();
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Removido localmente. Erro ao sincronizar.");
+      });
+  };
+
+  const handleClearSlots = (weekday: number) => {
+    if (!window.confirm("Deseja realmente limpar todos os horários deste dia?")) return;
+    clearLocalWeekdaySlotsForDay(weekday);
+    setWhitelistSlots(getLocalWeekdaySlots());
+
+    fetch('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'clear_slots', weekday })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Erro no servidor');
+        return res.json();
+      })
+      .then(() => {
+        toast.success("Grade limpa!");
+        reload();
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Limpo localmente. Erro ao sincronizar.");
+      });
+  };
+
+  const handleCopySlots = () => {
+    if (targetDaysForCopy.length === 0) {
+      toast.warning("Selecione pelo menos um dia de destino.");
+      return;
+    }
+    copyLocalWeekdaySlots(selectedWeekday, targetDaysForCopy);
+    setWhitelistSlots(getLocalWeekdaySlots());
+    setShowCopyModal(false);
+
+    fetch('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'copy_slots', fromWeekday: selectedWeekday, toWeekdays: targetDaysForCopy })
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Erro no servidor');
+        return res.json();
+      })
+      .then(() => {
+        toast.success("Grade de horários copiada!");
+        reload();
+        setTargetDaysForCopy([]);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Copiado localmente. Erro ao sincronizar.");
+        setTargetDaysForCopy([]);
+      });
+  };
+
   const handleProvisionCalendar = () => {
     setIsProvisioning(true);
     fetch('/api/calendar/provision', {
@@ -96,6 +221,7 @@ const AdminPanel = () => {
     setBookings(getBookings());
     setCompleted(getCompleted());
     setBlocks(getBlocks());
+    setWhitelistSlots(getLocalWeekdaySlots());
 
     // Busca eventos em tempo real do Google Calendar API (fonte da verdade)
     fetch(`/api/calendar?t=${Date.now()}`, {
@@ -121,6 +247,10 @@ const AdminPanel = () => {
         if (Array.isArray(data.blocks)) {
           saveBlocks(data.blocks);
           setBlocks(data.blocks);
+        }
+        if (Array.isArray(data.weekdaySlots)) {
+          saveLocalWeekdaySlots(data.weekdaySlots);
+          setWhitelistSlots(data.weekdaySlots);
         }
       })
       .catch((err) => {
@@ -621,6 +751,7 @@ const AdminPanel = () => {
   const tabs: { key: TabType; label: string; icon: React.ReactNode; badge?: number }[] = [
     { key: 'bookings', label: 'Agendamentos', icon: <CalendarDays className="w-4 h-4" />, badge: bookings.length + blocks.length },
     { key: 'dashboard', label: 'Dashboard', icon: <TrendingUp className="w-4 h-4" /> },
+    { key: 'slots', label: 'Horários', icon: <Clock className="w-4 h-4" /> },
     { key: 'add', label: 'Adicionar', icon: <Plus className="w-4 h-4" /> },
     { key: 'settings', label: 'Configurações', icon: <Settings className="w-4 h-4" /> },
   ];
@@ -1232,6 +1363,175 @@ const AdminPanel = () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ===== GERENCIAR HORÁRIOS (SLOTS) TAB ===== */}
+          {tab === 'slots' && (
+            <div className="space-y-6 max-w-2xl mx-auto animate-in fade-in duration-300">
+              <div className="bg-card/85 backdrop-blur-xl p-6 md:p-8 rounded-2xl border border-primary/10 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_-15px_rgba(0,0,0,0.5)] space-y-6">
+                <div>
+                  <h3 className="text-lg font-bold text-foreground mb-1">Horários de Atendimento</h3>
+                  <p className="text-xs text-muted-foreground">Configure os horários de início disponíveis por dia da semana. Se um dia não tiver horários cadastrados, o site usará o comportamento corrido padrão.</p>
+                </div>
+
+                {/* Seleção do Dia da Semana */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {WEEKDAYS.map((day) => (
+                    <button
+                      key={day.value}
+                      onClick={() => setSelectedWeekday(day.value)}
+                      className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                        selectedWeekday === day.value
+                          ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_15px_-3px_hsl(var(--primary)/0.3)]'
+                          : 'bg-background/40 text-muted-foreground hover:text-foreground border-primary/10'
+                      }`}
+                    >
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Adicionar Horário Rápido + Limpar Dia */}
+                <div className="flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-primary/5">
+                  <div className="w-full sm:w-auto flex-1">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-1.5 block">Adicionar Horário</label>
+                    <div className="flex gap-2 w-full">
+                      <input
+                        type="time"
+                        value={newSlotTime}
+                        onChange={(e) => setNewSlotTime(e.target.value)}
+                        className="flex-1 bg-background/50 border border-primary/10 focus:border-primary/40 p-3 rounded-xl outline-none transition-all text-foreground text-sm"
+                        style={{ colorScheme: 'dark' }}
+                      />
+                      <button
+                        onClick={handleAddSlot}
+                        disabled={isSavingSlot}
+                        className="px-5 py-3 bg-primary text-primary-foreground font-bold rounded-xl transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-1 text-sm shrink-0"
+                      >
+                        <Plus className="w-4 h-4" /> Adicionar
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="w-full sm:w-auto self-end flex gap-2">
+                    <button
+                      onClick={() => handleClearSlots(selectedWeekday)}
+                      className="w-full sm:w-auto px-4 py-3 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold rounded-xl border border-destructive/15 transition-all text-center"
+                      title="Apagar todos os horários cadastrados para este dia"
+                    >
+                      Limpar Dia
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setTargetDaysForCopy([]);
+                        setShowCopyModal(true);
+                      }}
+                      className="w-full sm:w-auto px-4 py-3 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-xs font-bold rounded-xl border border-primary/10 transition-all text-center"
+                      title="Copiar horários deste dia para outros"
+                    >
+                      Copiar Grade
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de Horários Ativos do Dia */}
+                <div className="space-y-3 pt-3 border-t border-primary/5">
+                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest block">Horários Ativos ({whitelistSlots.filter(s => s.weekday === selectedWeekday).length})</label>
+                  
+                  {whitelistSlots.filter(s => s.weekday === selectedWeekday).length === 0 ? (
+                    <div className="text-center py-8 bg-background/20 rounded-xl border border-dashed border-primary/5">
+                      <Clock className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">Nenhum horário cadastrado. (Modo Padrão Ativo)</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {whitelistSlots
+                        .filter(s => s.weekday === selectedWeekday)
+                        .sort((a, b) => a.time.localeCompare(b.time))
+                        .map((slot, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 pl-3.5 pr-2 py-1.5 rounded-full text-sm font-semibold hover:bg-primary/15 transition-colors"
+                          >
+                            <span className="font-mono">{slot.time}</span>
+                            <button
+                              onClick={() => handleDeleteSlot(selectedWeekday, slot.time)}
+                              className="text-primary/60 hover:text-primary hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                              title="Remover horário"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Copy Whitelist Grade Modal */}
+          {showCopyModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-card w-[95%] max-w-sm rounded-3xl border border-primary/15 card-shadow p-6 md:p-8 relative space-y-6 animate-in zoom-in-95 duration-200">
+                <button
+                  onClick={() => setShowCopyModal(false)}
+                  className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1"
+                  title="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                <div className="space-y-2 text-center pt-2">
+                  <h3 className="text-lg font-bold text-foreground">Copiar Grade de Horários</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Copiar a grade de <span className="font-semibold text-primary">{WEEKDAYS.find(d => d.value === selectedWeekday)?.label}</span> para os dias selecionados abaixo:
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {WEEKDAYS.filter(d => d.value !== selectedWeekday).map((day) => {
+                    const isSelected = targetDaysForCopy.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        onClick={() => {
+                          if (isSelected) {
+                            setTargetDaysForCopy(targetDaysForCopy.filter(v => v !== day.value));
+                          } else {
+                            setTargetDaysForCopy([...targetDaysForCopy, day.value]);
+                          }
+                        }}
+                        className={`px-3 py-2 rounded-xl text-xs font-medium border text-center transition-all ${
+                          isSelected
+                            ? 'bg-primary/20 text-primary border-primary'
+                            : 'bg-background/20 text-muted-foreground border-primary/5 hover:border-primary/20'
+                        }`}
+                      >
+                        {day.label.split('-')[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setShowCopyModal(false)}
+                    className="flex-1 py-3 bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80 rounded-xl text-xs font-bold transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleCopySlots}
+                    disabled={targetDaysForCopy.length === 0}
+                    className="flex-1 py-3 bg-primary text-primary-foreground font-bold rounded-xl text-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:scale-100 flex items-center justify-center gap-1.5"
+                  >
+                    Confirmar Cópia
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 

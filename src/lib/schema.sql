@@ -25,3 +25,12 @@ CREATE TABLE IF NOT EXISTS studio_config (
   google_calendar_id TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Horários Permitidos Whitelist por Dia da Semana (Brenda Batista)
+CREATE TABLE IF NOT EXISTS weekday_slots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  weekday INTEGER NOT NULL, -- 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+  time TEXT NOT NULL,       -- Formato "HH:mm"
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(weekday, time)
+);

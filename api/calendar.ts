@@ -124,8 +124,35 @@ export default async function handler(req: any, res: any) {
     // ----------------------------------------------------
     // GET: Buscar eventos (agendamentos e bloqueios)
     // ----------------------------------------------------
+    if (req.method === 'GET' && req.query.action === 'get_slots') {
+      try {
+        const { data, error } = await supabase
+          .from('weekday_slots')
+          .select('*')
+          .order('time', { ascending: true });
+        if (error) throw error;
+        return res.status(200).json({ slots: data || [] });
+      } catch (err: any) {
+        console.error("Error fetching slots:", err);
+        return res.status(200).json({ slots: [] });
+      }
+    }
+
     if (req.method === 'GET') {
       const now = new Date();
+      
+      let weekdaySlots: any[] = [];
+      try {
+        const { data: slotsData } = await supabase
+          .from('weekday_slots')
+          .select('*')
+          .order('time', { ascending: true });
+        if (slotsData) {
+          weekdaySlots = slotsData;
+        }
+      } catch (err) {
+        console.warn("Supabase weekday_slots query warning:", err);
+      }
       // Período de busca padrão: de 30 dias atrás até 90 dias no futuro
       const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
       const timeMax = new Date(now.getFullYear(), now.getMonth() + 3, 1).toISOString();
@@ -301,7 +328,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks });
+        return res.status(200).json({ bookings, blocks, weekdaySlots });
       } else {
         // ----------------------------------------------------
         // DATABASE: Consultar registros do Supabase (Dashboard Admin)
@@ -347,7 +374,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks });
+        return res.status(200).json({ bookings, blocks, weekdaySlots });
       }
     }
 
@@ -355,7 +382,89 @@ export default async function handler(req: any, res: any) {
     // POST: Criar novo evento (agendamento ou bloqueio)
     // ----------------------------------------------------
     if (req.method === 'POST') {
-      const { type, booking, block, duration } = req.body;
+      const { type } = req.body;
+
+      if (type === 'add_slot') {
+        const { weekday, time } = req.body;
+        try {
+          const { data, error } = await supabase
+            .from('weekday_slots')
+            .insert([{ weekday, time }], { onConflict: 'weekday,time', ignoreDuplicates: true })
+            .select();
+          
+          if (error) throw error;
+          return res.status(200).json({ success: true, slot: data?.[0] || null });
+        } catch (err: any) {
+          console.error("Error adding slot:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'delete_slot') {
+        const { weekday, time } = req.body;
+        try {
+          const { error } = await supabase
+            .from('weekday_slots')
+            .delete()
+            .eq('weekday', weekday)
+            .eq('time', time);
+          if (error) throw error;
+          return res.status(200).json({ success: true });
+        } catch (err: any) {
+          console.error("Error deleting slot:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'clear_slots') {
+        const { weekday } = req.body;
+        try {
+          const { error } = await supabase
+            .from('weekday_slots')
+            .delete()
+            .eq('weekday', weekday);
+          if (error) throw error;
+          return res.status(200).json({ success: true });
+        } catch (err: any) {
+          console.error("Error clearing slots:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'copy_slots') {
+        const { fromWeekday, toWeekdays } = req.body;
+        try {
+          const { data: sourceSlots, error: fetchErr } = await supabase
+            .from('weekday_slots')
+            .select('time')
+            .eq('weekday', fromWeekday);
+          if (fetchErr) throw fetchErr;
+          
+          const times = (sourceSlots || []).map(s => s.time);
+          
+          for (const targetDay of toWeekdays) {
+            const { error: delErr } = await supabase
+              .from('weekday_slots')
+              .delete()
+              .eq('weekday', targetDay);
+            if (delErr) throw delErr;
+            
+            if (times.length > 0) {
+              const inserts = times.map(time => ({ weekday: targetDay, time }));
+              const { error: insErr } = await supabase
+                .from('weekday_slots')
+                .insert(inserts, { onConflict: 'weekday,time', ignoreDuplicates: true });
+              if (insErr) throw insErr;
+            }
+          }
+          return res.status(200).json({ success: true });
+        } catch (err: any) {
+          console.error("Error copying slots:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      const { booking, block, duration } = req.body;
 
       if (type === 'booking') {
         const id = booking.id;

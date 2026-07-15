@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SERVICES, isDayAllowed, getTimesForDate, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
-import { addBooking, getBookings, getBlocks } from '@/lib/bookingStore';
+import { addBooking, getBookings, getBlocks, getLocalWeekdaySlots, saveLocalWeekdaySlots } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -34,9 +34,16 @@ const BookingSection = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [googleBookings, setGoogleBookings] = useState<Booking[]>([]);
   const [googleBlocks, setGoogleBlocks] = useState<ScheduleBlock[]>([]);
+  const [weekdaySlots, setWeekdaySlots] = useState<{ weekday: number; time: string }[]>([]);
 
   // Load schedule events from Google Calendar API on mount to act as source of truth
   useEffect(() => {
+    // Initial local storage load
+    const local = getLocalWeekdaySlots();
+    if (local && local.length > 0) {
+      setWeekdaySlots(local);
+    }
+
     fetch('/api/calendar?realtime=true')
       .then((res) => res.json())
       .then((data) => {
@@ -45,6 +52,10 @@ const BookingSection = () => {
         }
         if (Array.isArray(data.blocks)) {
           setGoogleBlocks(data.blocks);
+        }
+        if (Array.isArray(data.weekdaySlots)) {
+          setWeekdaySlots(data.weekdaySlots);
+          saveLocalWeekdaySlots(data.weekdaySlots);
         }
       })
       .catch((err) => {
@@ -59,7 +70,21 @@ const BookingSection = () => {
     }
 
     const dateStr = format(selectedDate, 'dd/MM/yyyy');
-    const baseTimes = getTimesForDate(selectedDate);
+    
+    // Check if weekday slots are configured in Whitelist
+    const dayOfWeek = selectedDate.getDay();
+    const specificSlots = weekdaySlots
+      .filter((s) => s.weekday === dayOfWeek)
+      .map((s) => s.time)
+      .sort((a, b) => {
+        const [ha, ma] = a.split(':').map(Number);
+        const [hb, mb] = b.split(':').map(Number);
+        return (ha * 60 + ma) - (hb * 60 + mb);
+      });
+
+    const baseTimes = specificSlots.length > 0 
+      ? specificSlots 
+      : getTimesForDate(selectedDate);
 
     const calculateLocalSlots = () => {
       // Mescla reservas locais e do Google Calendar para evitar duplicados e manter consistência imediata
@@ -146,7 +171,7 @@ const BookingSection = () => {
 
     const localSlots = calculateLocalSlots();
     setAvailableTimes(localSlots);
-  }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks]);
+  }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks, weekdaySlots]);
 
   // Combined service name and price
   const combinedServiceName = useMemo(() => {
