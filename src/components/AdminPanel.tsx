@@ -248,7 +248,7 @@ const AdminPanel = () => {
           saveBlocks(data.blocks);
           setBlocks(data.blocks);
         }
-        if (Array.isArray(data.weekdaySlots)) {
+        if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
           saveLocalWeekdaySlots(data.weekdaySlots);
           setWhitelistSlots(data.weekdaySlots);
         }

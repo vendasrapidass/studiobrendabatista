@@ -13,13 +13,20 @@ const auth = new google.auth.GoogleAuth({
 const calendar = google.calendar({ version: 'v3', auth });
 
 // Configuração do Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const isDbConfigured = !!(supabaseUrl && !supabaseUrl.includes('SUA_CHAVE_AQUI') && supabaseKey && !supabaseKey.includes('SUA_CHAVE_AQUI'));
+
 const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  isDbConfigured ? supabaseUrl : 'https://placeholder-project.supabase.co',
+  isDbConfigured ? supabaseKey : 'placeholder-key'
 );
 
 // Função para buscar o ID da agenda dinâmica do estúdio no Supabase
 async function getDynamicCalendarId(): Promise<string> {
+  if (!isDbConfigured) {
+    return 'guilhermesuzena10@gmail.com';
+  }
   try {
     const { data, error } = await supabase
       .from('studio_config')
@@ -125,6 +132,9 @@ export default async function handler(req: any, res: any) {
     // GET: Buscar eventos (agendamentos e bloqueios)
     // ----------------------------------------------------
     if (req.method === 'GET' && req.query.action === 'get_slots') {
+      if (!isDbConfigured) {
+        return res.status(200).json({ slots: [], db_disabled: true });
+      }
       try {
         const { data, error } = await supabase
           .from('weekday_slots')
@@ -134,7 +144,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ slots: data || [] });
       } catch (err: any) {
         console.error("Error fetching slots:", err);
-        return res.status(200).json({ slots: [] });
+        return res.status(200).json({ slots: [], db_disabled: true });
       }
     }
 
@@ -142,16 +152,23 @@ export default async function handler(req: any, res: any) {
       const now = new Date();
       
       let weekdaySlots: any[] = [];
-      try {
-        const { data: slotsData } = await supabase
-          .from('weekday_slots')
-          .select('*')
-          .order('time', { ascending: true });
-        if (slotsData) {
-          weekdaySlots = slotsData;
+      let db_error = !isDbConfigured;
+
+      if (isDbConfigured) {
+        try {
+          const { data: slotsData, error } = await supabase
+            .from('weekday_slots')
+            .select('*')
+            .order('time', { ascending: true });
+          if (error) {
+            db_error = true;
+          } else if (slotsData) {
+            weekdaySlots = slotsData;
+          }
+        } catch (err) {
+          db_error = true;
+          console.warn("Supabase weekday_slots query warning:", err);
         }
-      } catch (err) {
-        console.warn("Supabase weekday_slots query warning:", err);
       }
       // Período de busca padrão: de 30 dias atrás até 90 dias no futuro
       const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
@@ -328,7 +345,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks, weekdaySlots });
+        return res.status(200).json({ bookings, blocks, weekdaySlots, db_disabled: db_error });
       } else {
         // ----------------------------------------------------
         // DATABASE: Consultar registros do Supabase (Dashboard Admin)
@@ -374,7 +391,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks, weekdaySlots });
+        return res.status(200).json({ bookings, blocks, weekdaySlots, db_disabled: db_error });
       }
     }
 
@@ -383,6 +400,12 @@ export default async function handler(req: any, res: any) {
     // ----------------------------------------------------
     if (req.method === 'POST') {
       const { type } = req.body;
+
+      if (type === 'add_slot' || type === 'delete_slot' || type === 'clear_slots' || type === 'copy_slots') {
+        if (!isDbConfigured) {
+          return res.status(503).json({ error: "Banco de dados desconfigurado. Usando modo offline local." });
+        }
+      }
 
       if (type === 'add_slot') {
         const { weekday, time } = req.body;

@@ -53,7 +53,7 @@ const BookingSection = () => {
         if (Array.isArray(data.blocks)) {
           setGoogleBlocks(data.blocks);
         }
-        if (Array.isArray(data.weekdaySlots)) {
+        if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
           setWeekdaySlots(data.weekdaySlots);
           saveLocalWeekdaySlots(data.weekdaySlots);
         }
