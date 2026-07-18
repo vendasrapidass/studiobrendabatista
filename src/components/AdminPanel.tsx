@@ -288,7 +288,7 @@ const AdminPanel = () => {
 
   // Accept booking → send WhatsApp confirmation, mark as accepted
   const handleAccept = (booking: Booking) => {
-    const msg = `✨ *STUDIO BRENDA BATISTA* ✨\n\nOlá *${booking.name}*! 👋\n\nSeu agendamento foi *CONFIRMADO* com sucesso! ✅\n\n📋 *Serviço:* ${booking.service}\n💰 *Valor:* R$ ${booking.price},00\n📅 *Data:* ${booking.date}\n🕐 *Horário:* ${booking.time}\n\n📍 *Endereço:* Edifício Ilha de Manhattan - Av. Vereador Arlindo Chemin, nº 50, Sala 102 (Piso 1, à esquerda) - Centro, Campo Largo - PR\n\nEstamos te esperando! 🌸\nAté lá! 🤝`;
+    const msg = `✨ *STUDIO BRENDA BATISTA* ✨\n\nOlá *${booking.name}*! 👋\n\nSeu agendamento foi *CONFIRMADO* com sucesso! ✅\n\n📋 *Serviço:* ${booking.service}\n💰 *Valor:* R$ ${booking.price},00\n📅 *Data:* ${booking.date}\n🕐 *Horário:* ${booking.time}\n\n📍 *Endereço:* Edifício Ilha de Manhattan - Av. Vereador Arlindo Chemin, nº 50, Sala 115 (Piso 1, à esquerda) - Centro, Campo Largo - PR\n\nEstamos te esperando! 🌸\nAté lá! 🤝`;
     
     if (booking.phone) {
       window.open(generateWhatsAppUrl(booking.phone, msg), '_blank');

@@ -52,7 +52,7 @@ const LocationSection = () => {
 
         <div className="text-center">
           <p className="font-bold text-lg">Edifício Ilha de Manhattan - Campo Largo</p>
-          <p className="text-sm text-muted-foreground">Av. Vereador Arlindo Chemin, nº 50 • Sala 102 – Piso 1, à esquerda.<br/>Centro, Campo Largo - PR</p>
+          <p className="text-sm text-muted-foreground">Av. Vereador Arlindo Chemin, nº 50 • Sala 115 – Piso 1, à esquerda.<br/>Centro, Campo Largo - PR</p>
         </div>
       </motion.div>
     </section>
