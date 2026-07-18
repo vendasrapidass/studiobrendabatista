@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Booking, SERVICES, generateWhatsAppUrl, formatPhone, ScheduleBlock } from '@/lib/types';
-import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock, getLocalWeekdaySlots, saveLocalWeekdaySlots, addLocalWeekdaySlot, removeLocalWeekdaySlot, clearLocalWeekdaySlotsForDay, copyLocalWeekdaySlots } from '@/lib/bookingStore';
+import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock, getLocalWeekdaySlots, saveLocalWeekdaySlots, addLocalWeekdaySlot, removeLocalWeekdaySlot, clearLocalWeekdaySlotsForDay, copyLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots, addLocalDateSlot, removeLocalDateSlot, clearLocalDateSlotsForDate, copyLocalWeekdayToDateSlots, copyLocalDateSlots } from '@/lib/bookingStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, DollarSign, Sparkles, Scissors, TrendingUp, ArrowLeft, Plus, X, Check, Clock, Pencil, Trash2, Phone, Search, Settings } from 'lucide-react';
@@ -63,11 +63,18 @@ const AdminPanel = () => {
 
   // Slots Whitelist editor state
   const [whitelistSlots, setWhitelistSlots] = useState<{ id?: string; weekday: number; time: string }[]>([]);
+  const [dateSlots, setDateSlots] = useState<{ id?: string; selected_date: string; time: string }[]>([]);
+  const [slotsMode, setSlotsMode] = useState<'weekly' | 'specific'>('weekly');
   const [selectedWeekday, setSelectedWeekday] = useState<number>(1);
+  const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toISOString().split('T')[0]);
   const [newSlotTime, setNewSlotTime] = useState<string>('08:00');
   const [isSavingSlot, setIsSavingSlot] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [targetDaysForCopy, setTargetDaysForCopy] = useState<number[]>([]);
+  
+  // Specific date copy state
+  const [copySourceType, setCopySourceType] = useState<'date' | 'weekday'>('date');
+  const [targetDatesForCopyStr, setTargetDatesForCopyStr] = useState<string>('');
 
   const WEEKDAYS = [
     { value: 1, label: 'Segunda-feira' },
@@ -81,109 +88,300 @@ const AdminPanel = () => {
 
   const handleAddSlot = () => {
     if (!newSlotTime) return;
-    if (whitelistSlots.some(s => s.weekday === selectedWeekday && s.time === newSlotTime)) {
-      toast.warning("Este horário já está cadastrado para este dia.");
-      return;
+
+    if (slotsMode === 'weekly') {
+      if (whitelistSlots.some(s => s.weekday === selectedWeekday && s.time === newSlotTime)) {
+        toast.warning("Este horário já está cadastrado para este dia.");
+        return;
+      }
+      setIsSavingSlot(true);
+      // Optimistic update
+      addLocalWeekdaySlot({ weekday: selectedWeekday, time: newSlotTime });
+      setWhitelistSlots(getLocalWeekdaySlots());
+
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'add_slot', weekday: selectedWeekday, time: newSlotTime })
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Horário adicionado com sucesso!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Salvo localmente. Erro ao sincronizar.");
+        })
+        .finally(() => setIsSavingSlot(false));
+    } else {
+      if (dateSlots.some(s => s.selected_date === selectedDateStr && s.time === newSlotTime)) {
+        toast.warning("Este horário já está cadastrado para esta data.");
+        return;
+      }
+      setIsSavingSlot(true);
+      // Optimistic update
+      addLocalDateSlot({ selected_date: selectedDateStr, time: newSlotTime });
+      setDateSlots(getLocalDateSlots());
+
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'add_date_slot', selected_date: selectedDateStr, time: newSlotTime })
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Horário adicionado com sucesso!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Salvo localmente. Erro ao sincronizar.");
+        })
+        .finally(() => setIsSavingSlot(false));
     }
-    setIsSavingSlot(true);
-    addLocalWeekdaySlot({ weekday: selectedWeekday, time: newSlotTime });
-    setWhitelistSlots(getLocalWeekdaySlots());
-
-    fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'add_slot', weekday: selectedWeekday, time: newSlotTime })
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Erro no servidor');
-        return res.json();
-      })
-      .then(() => {
-        toast.success("Horário adicionado com sucesso!");
-        reload();
-      })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Salvo localmente. Erro ao sincronizar.");
-      })
-      .finally(() => setIsSavingSlot(false));
   };
 
-  const handleDeleteSlot = (weekday: number, time: string) => {
-    removeLocalWeekdaySlot(weekday, time);
-    setWhitelistSlots(getLocalWeekdaySlots());
+  const handleDeleteSlot = (weekdayOrDate: number | string, time: string, isDate: boolean = false) => {
+    if (!isDate) {
+      const wk = Number(weekdayOrDate);
+      removeLocalWeekdaySlot(wk, time);
+      setWhitelistSlots(getLocalWeekdaySlots());
 
-    fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'delete_slot', weekday, time })
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Erro no servidor');
-        return res.json();
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'delete_slot', weekday: wk, time })
       })
-      .then(() => {
-        toast.success("Horário excluído!");
-        reload();
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Horário excluído!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Removido localmente. Erro ao sincronizar.");
+        });
+    } else {
+      const dt = String(weekdayOrDate);
+      removeLocalDateSlot(dt, time);
+      setDateSlots(getLocalDateSlots());
+
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'delete_date_slot', selected_date: dt, time })
       })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Removido localmente. Erro ao sincronizar.");
-      });
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Horário excluído!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Removido localmente. Erro ao sincronizar.");
+        });
+    }
   };
 
-  const handleClearSlots = (weekday: number) => {
-    if (!window.confirm("Deseja realmente limpar todos os horários deste dia?")) return;
-    clearLocalWeekdaySlotsForDay(weekday);
-    setWhitelistSlots(getLocalWeekdaySlots());
+  const handleClearSlots = () => {
+    if (slotsMode === 'weekly') {
+      if (!window.confirm("Deseja realmente limpar todos os horários deste dia?")) return;
+      clearLocalWeekdaySlotsForDay(selectedWeekday);
+      setWhitelistSlots(getLocalWeekdaySlots());
 
-    fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'clear_slots', weekday })
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Erro no servidor');
-        return res.json();
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'clear_slots', weekday: selectedWeekday })
       })
-      .then(() => {
-        toast.success("Grade limpa!");
-        reload();
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Grade limpa!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Limpo localmente. Erro ao sincronizar.");
+        });
+    } else {
+      const formattedDate = selectedDateStr.split('-').reverse().join('/');
+      if (!window.confirm(`Deseja realmente limpar todos os horários do dia ${formattedDate}?`)) return;
+      clearLocalDateSlotsForDate(selectedDateStr);
+      setDateSlots(getLocalDateSlots());
+
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'clear_date_slots', selected_date: selectedDateStr })
       })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Limpo localmente. Erro ao sincronizar.");
-      });
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Grade limpa!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Limpo localmente. Erro ao sincronizar.");
+        });
+    }
   };
 
   const handleCopySlots = () => {
-    if (targetDaysForCopy.length === 0) {
-      toast.warning("Selecione pelo menos um dia de destino.");
-      return;
-    }
-    copyLocalWeekdaySlots(selectedWeekday, targetDaysForCopy);
-    setWhitelistSlots(getLocalWeekdaySlots());
-    setShowCopyModal(false);
+    if (slotsMode === 'weekly') {
+      if (targetDaysForCopy.length === 0) {
+        toast.warning("Selecione pelo menos um dia de destino.");
+        return;
+      }
+      copyLocalWeekdaySlots(selectedWeekday, targetDaysForCopy);
+      setWhitelistSlots(getLocalWeekdaySlots());
+      setShowCopyModal(false);
 
-    fetch('/api/calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'copy_slots', fromWeekday: selectedWeekday, toWeekdays: targetDaysForCopy })
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Erro no servidor');
-        return res.json();
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'copy_slots', fromWeekday: selectedWeekday, toWeekdays: targetDaysForCopy })
       })
-      .then(() => {
-        toast.success("Grade de horários copiada!");
-        reload();
-        setTargetDaysForCopy([]);
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Grade de horários copiada!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+          setTargetDaysForCopy([]);
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Copiado localmente. Erro ao sincronizar.");
+          setTargetDaysForCopy([]);
+        });
+    } else {
+      const parsedDates = targetDatesForCopyStr
+        .split(',')
+        .map(d => d.trim())
+        .filter(Boolean)
+        .map(d => {
+          if (d.includes('/')) {
+            const [day, month, year] = d.split('/');
+            return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          }
+          return d;
+        })
+        .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+      if (parsedDates.length === 0) {
+        toast.warning("Digite pelo menos uma data de destino válida (ex: DD/MM/AAAA).");
+        return;
+      }
+
+      if (copySourceType === 'weekday') {
+        copyLocalWeekdayToDateSlots(selectedWeekday, parsedDates);
+      } else {
+        copyLocalDateSlots(selectedDateStr, parsedDates);
+      }
+      setDateSlots(getLocalDateSlots());
+      setShowCopyModal(false);
+
+      fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'copy_date_slots',
+          fromType: copySourceType,
+          fromValue: copySourceType === 'weekday' ? selectedWeekday : selectedDateStr,
+          toDates: parsedDates
+        })
       })
-      .catch((err) => {
-        console.error(err);
-        toast.error("Copiado localmente. Erro ao sincronizar.");
-        setTargetDaysForCopy([]);
-      });
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Erro no servidor');
+          return res.json();
+        })
+        .then((data) => {
+          toast.success("Grade de horários copiada!");
+          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+            saveLocalWeekdaySlots(data.weekdaySlots);
+            setWhitelistSlots(data.weekdaySlots);
+          }
+          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+            saveLocalDateSlots(data.dateSpecificSlots);
+            setDateSlots(data.dateSpecificSlots);
+          }
+          setTargetDatesForCopyStr('');
+        })
+        .catch((err) => {
+          console.error(err);
+          toast.error("Copiado localmente. Erro ao sincronizar.");
+          setTargetDatesForCopyStr('');
+        });
+    }
   };
 
   const handleProvisionCalendar = () => {
@@ -222,6 +420,7 @@ const AdminPanel = () => {
     setCompleted(getCompleted());
     setBlocks(getBlocks());
     setWhitelistSlots(getLocalWeekdaySlots());
+    setDateSlots(getLocalDateSlots());
 
     // Busca eventos em tempo real do Google Calendar API (fonte da verdade)
     fetch(`/api/calendar?t=${Date.now()}`, {
@@ -251,6 +450,10 @@ const AdminPanel = () => {
         if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
           saveLocalWeekdaySlots(data.weekdaySlots);
           setWhitelistSlots(data.weekdaySlots);
+        }
+        if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+          saveLocalDateSlots(data.dateSpecificSlots);
+          setDateSlots(data.dateSpecificSlots);
         }
       })
       .catch((err) => {
@@ -1372,25 +1575,63 @@ const AdminPanel = () => {
               <div className="bg-card/85 backdrop-blur-xl p-6 md:p-8 rounded-2xl border border-primary/10 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_-15px_rgba(0,0,0,0.5)] space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-foreground mb-1">Horários de Atendimento</h3>
-                  <p className="text-xs text-muted-foreground">Configure os horários de início disponíveis por dia da semana. Se um dia não tiver horários cadastrados, o site usará o comportamento corrido padrão.</p>
+                  <p className="text-xs text-muted-foreground">Configure os horários de início permitidos no estúdio. Escolha entre a Grade Semanal padrão ou cadastre exceções para Datas Específicas.</p>
                 </div>
 
-                {/* Seleção do Dia da Semana */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {WEEKDAYS.map((day) => (
-                    <button
-                      key={day.value}
-                      onClick={() => setSelectedWeekday(day.value)}
-                      className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
-                        selectedWeekday === day.value
-                          ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_15px_-3px_hsl(var(--primary)/0.3)]'
-                          : 'bg-background/40 text-muted-foreground hover:text-foreground border-primary/10'
-                      }`}
-                    >
-                      {day.label}
-                    </button>
-                  ))}
+                {/* Seletor de Modo: Semanal vs Exceção por Data */}
+                <div className="flex gap-2 p-1 bg-background/50 rounded-xl border border-primary/10 max-w-sm">
+                  <button
+                    onClick={() => setSlotsMode('weekly')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                      slotsMode === 'weekly'
+                        ? 'bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.25)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Grade Semanal
+                  </button>
+                  <button
+                    onClick={() => setSlotsMode('specific')}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                      slotsMode === 'specific'
+                        ? 'bg-primary text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.25)]'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Datas Específicas
+                  </button>
                 </div>
+
+                {slotsMode === 'weekly' ? (
+                  /* Seleção do Dia da Semana */
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {WEEKDAYS.map((day) => (
+                      <button
+                        key={day.value}
+                        onClick={() => setSelectedWeekday(day.value)}
+                        className={`px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                          selectedWeekday === day.value
+                            ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_15px_-3px_hsl(var(--primary)/0.3)]'
+                            : 'bg-background/40 text-muted-foreground hover:text-foreground border-primary/10'
+                        }`}
+                      >
+                        {day.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  /* Seleção de Data Específica */
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest block">Selecionar Data de Exceção</label>
+                    <input
+                      type="date"
+                      value={selectedDateStr}
+                      onChange={(e) => setSelectedDateStr(e.target.value)}
+                      className="w-full bg-background/50 border border-primary/10 focus:border-primary/40 p-3 rounded-xl outline-none transition-all text-foreground text-sm max-w-sm"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                )}
 
                 {/* Adicionar Horário Rápido + Limpar Dia */}
                 <div className="flex flex-col sm:flex-row items-center gap-3 pt-3 border-t border-primary/5">
@@ -1416,9 +1657,9 @@ const AdminPanel = () => {
 
                   <div className="w-full sm:w-auto self-end flex gap-2">
                     <button
-                      onClick={() => handleClearSlots(selectedWeekday)}
+                      onClick={handleClearSlots}
                       className="w-full sm:w-auto px-4 py-3 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-bold rounded-xl border border-destructive/15 transition-all text-center"
-                      title="Apagar todos os horários cadastrados para este dia"
+                      title={slotsMode === 'weekly' ? "Apagar todos os horários deste dia da semana" : "Apagar todos os horários desta data"}
                     >
                       Limpar Dia
                     </button>
@@ -1426,10 +1667,11 @@ const AdminPanel = () => {
                     <button
                       onClick={() => {
                         setTargetDaysForCopy([]);
+                        setTargetDatesForCopyStr('');
                         setShowCopyModal(true);
                       }}
                       className="w-full sm:w-auto px-4 py-3 bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-foreground text-xs font-bold rounded-xl border border-primary/10 transition-all text-center"
-                      title="Copiar horários deste dia para outros"
+                      title="Copiar horários desta grade para outras datas"
                     >
                       Copiar Grade
                     </button>
@@ -1438,33 +1680,50 @@ const AdminPanel = () => {
 
                 {/* Lista de Horários Ativos do Dia */}
                 <div className="space-y-3 pt-3 border-t border-primary/5">
-                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest block">Horários Ativos ({whitelistSlots.filter(s => s.weekday === selectedWeekday).length})</label>
+                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest block">
+                    Horários Ativos ({
+                      slotsMode === 'weekly'
+                        ? whitelistSlots.filter(s => s.weekday === selectedWeekday).length
+                        : dateSlots.filter(s => s.selected_date === selectedDateStr).length
+                    })
+                  </label>
                   
-                  {whitelistSlots.filter(s => s.weekday === selectedWeekday).length === 0 ? (
+                  {((slotsMode === 'weekly' 
+                    ? whitelistSlots.filter(s => s.weekday === selectedWeekday) 
+                    : dateSlots.filter(s => s.selected_date === selectedDateStr)
+                  ).length === 0) ? (
                     <div className="text-center py-8 bg-background/20 rounded-xl border border-dashed border-primary/5">
                       <Clock className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">Nenhum horário cadastrado. (Modo Padrão Ativo)</p>
+                      <p className="text-xs text-muted-foreground">
+                        {slotsMode === 'weekly' 
+                          ? "Nenhum horário cadastrado. (Modo Padrão Ativo)" 
+                          : "Nenhum horário específico nesta data. (Usa Grade Semanal)"}
+                      </p>
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {whitelistSlots
-                        .filter(s => s.weekday === selectedWeekday)
-                        .sort((a, b) => a.time.localeCompare(b.time))
-                        .map((slot, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 pl-3.5 pr-2 py-1.5 rounded-full text-sm font-semibold hover:bg-primary/15 transition-colors"
+                      {(slotsMode === 'weekly' 
+                        ? whitelistSlots.filter(s => s.weekday === selectedWeekday).sort((a,b) => a.time.localeCompare(b.time))
+                        : dateSlots.filter(s => s.selected_date === selectedDateStr).sort((a,b) => a.time.localeCompare(b.time))
+                      ).map((slot, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 pl-3.5 pr-2 py-1.5 rounded-full text-sm font-semibold hover:bg-primary/15 transition-colors"
+                        >
+                          <span className="font-mono">{slot.time}</span>
+                          <button
+                            onClick={() => handleDeleteSlot(
+                              slotsMode === 'weekly' ? selectedWeekday : selectedDateStr, 
+                              slot.time, 
+                              slotsMode === 'specific'
+                            )}
+                            className="text-primary/60 hover:text-primary hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                            title="Remover horário"
                           >
-                            <span className="font-mono">{slot.time}</span>
-                            <button
-                              onClick={() => handleDeleteSlot(selectedWeekday, slot.time)}
-                              className="text-primary/60 hover:text-primary hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                              title="Remover horário"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1484,37 +1743,75 @@ const AdminPanel = () => {
                   <X className="w-5 h-5" />
                 </button>
 
-                <div className="space-y-2 text-center pt-2">
-                  <h3 className="text-lg font-bold text-foreground">Copiar Grade de Horários</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Copiar a grade de <span className="font-semibold text-primary">{WEEKDAYS.find(d => d.value === selectedWeekday)?.label}</span> para os dias selecionados abaixo:
-                  </p>
-                </div>
+                {slotsMode === 'weekly' ? (
+                  /* Modo de Cópia Semanal */
+                  <>
+                    <div className="space-y-2 text-center pt-2">
+                      <h3 className="text-lg font-bold text-foreground">Copiar Grade Semanal</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Copiar a grade de <span className="font-semibold text-primary">{WEEKDAYS.find(d => d.value === selectedWeekday)?.label}</span> para os dias selecionados abaixo:
+                      </p>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {WEEKDAYS.filter(d => d.value !== selectedWeekday).map((day) => {
-                    const isSelected = targetDaysForCopy.includes(day.value);
-                    return (
-                      <button
-                        key={day.value}
-                        onClick={() => {
-                          if (isSelected) {
-                            setTargetDaysForCopy(targetDaysForCopy.filter(v => v !== day.value));
-                          } else {
-                            setTargetDaysForCopy([...targetDaysForCopy, day.value]);
-                          }
-                        }}
-                        className={`px-3 py-2 rounded-xl text-xs font-medium border text-center transition-all ${
-                          isSelected
-                            ? 'bg-primary/20 text-primary border-primary'
-                            : 'bg-background/20 text-muted-foreground border-primary/5 hover:border-primary/20'
-                        }`}
-                      >
-                        {day.label.split('-')[0]}
-                      </button>
-                    );
-                  })}
-                </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {WEEKDAYS.filter(d => d.value !== selectedWeekday).map((day) => {
+                        const isSelected = targetDaysForCopy.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            onClick={() => {
+                              if (isSelected) {
+                                setTargetDaysForCopy(targetDaysForCopy.filter(v => v !== day.value));
+                              } else {
+                                setTargetDaysForCopy([...targetDaysForCopy, day.value]);
+                              }
+                            }}
+                            className={`px-3 py-2 rounded-xl text-xs font-medium border text-center transition-all ${
+                              isSelected
+                                ? 'bg-primary/20 text-primary border-primary'
+                                : 'bg-background/20 text-muted-foreground border-primary/5 hover:border-primary/20'
+                            }`}
+                          >
+                            {day.label.split('-')[0]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  /* Modo de Cópia de Data Específica */
+                  <div className="space-y-4">
+                    <div className="space-y-2 text-center pt-2">
+                      <h3 className="text-lg font-bold text-foreground">Copiar para Datas</h3>
+                      <p className="text-xs text-muted-foreground">Copiar horários em lote para datas específicas de exceção.</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-1 block">Origem dos Horários</label>
+                        <select
+                          value={copySourceType}
+                          onChange={(e) => setCopySourceType(e.target.value as 'date' | 'weekday')}
+                          className="w-full bg-background border border-primary/15 p-2 rounded-xl text-xs font-semibold text-foreground"
+                        >
+                          <option value="date">Esta data específica ({selectedDateStr.split('-').reverse().join('/')})</option>
+                          <option value="weekday">Grade semanal de {WEEKDAYS.find(d => d.value === selectedWeekday)?.label}</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mb-1 block">Datas de Destino (separadas por vírgula)</label>
+                        <textarea
+                          value={targetDatesForCopyStr}
+                          onChange={(e) => setTargetDatesForCopyStr(e.target.value)}
+                          placeholder="Ex: 20/07/2026, 21/07/2026"
+                          className="w-full bg-background border border-primary/15 focus:border-primary p-2.5 rounded-xl text-xs font-medium text-foreground outline-none transition-all h-20 placeholder:text-muted-foreground/30"
+                        />
+                        <p className="text-[9px] text-muted-foreground mt-0.5">Insira no formato DD/MM/AAAA ou AAAA-MM-DD. Grades anteriores nestas datas serão substituídas.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button
@@ -1525,7 +1822,7 @@ const AdminPanel = () => {
                   </button>
                   <button
                     onClick={handleCopySlots}
-                    disabled={targetDaysForCopy.length === 0}
+                    disabled={slotsMode === 'weekly' ? targetDaysForCopy.length === 0 : !targetDatesForCopyStr.trim()}
                     className="flex-1 py-3 bg-primary text-primary-foreground font-bold rounded-xl text-xs transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:scale-100 flex items-center justify-center gap-1.5"
                   >
                     Confirmar Cópia

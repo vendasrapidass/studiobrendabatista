@@ -114,3 +114,73 @@ export function copyLocalWeekdaySlots(fromWeekday: number, toWeekdays: number[])
   
   saveLocalWeekdaySlots(newSlots);
 }
+
+// Date Specific Slots Whitelist Configuration (Local Fallback)
+const DATE_SLOTS_KEY = 'studiobrenda_date_slots';
+
+export interface DateSpecificSlot {
+  id?: string;
+  selected_date: string; // Formato "YYYY-MM-DD"
+  time: string;          // Formato "HH:mm"
+}
+
+export function getLocalDateSlots(): DateSpecificSlot[] {
+  return JSON.parse(localStorage.getItem(DATE_SLOTS_KEY) || '[]');
+}
+
+export function saveLocalDateSlots(slots: DateSpecificSlot[]): void {
+  localStorage.setItem(DATE_SLOTS_KEY, JSON.stringify(slots));
+}
+
+export function addLocalDateSlot(slot: DateSpecificSlot): void {
+  const slots = getLocalDateSlots();
+  if (!slots.some(s => s.selected_date === slot.selected_date && s.time === slot.time)) {
+    slots.push(slot);
+    saveLocalDateSlots(slots);
+  }
+}
+
+export function removeLocalDateSlot(selected_date: string, time: string): void {
+  const slots = getLocalDateSlots().filter(s => !(s.selected_date === selected_date && s.time === time));
+  saveLocalDateSlots(slots);
+}
+
+export function clearLocalDateSlotsForDate(selected_date: string): void {
+  const slots = getLocalDateSlots().filter(s => s.selected_date !== selected_date);
+  saveLocalDateSlots(slots);
+}
+
+export function copyLocalWeekdayToDateSlots(fromWeekday: number, to_dates: string[]): void {
+  const weekdaySlots = getLocalWeekdaySlots();
+  const sourceTimes = weekdaySlots.filter(s => s.weekday === fromWeekday).map(s => s.time);
+  
+  const slots = getLocalDateSlots();
+  // Remove target dates
+  let newSlots = slots.filter(s => !to_dates.includes(s.selected_date));
+  
+  // Add new copies
+  to_dates.forEach(targetDate => {
+    sourceTimes.forEach(time => {
+      newSlots.push({ selected_date: targetDate, time });
+    });
+  });
+  
+  saveLocalDateSlots(newSlots);
+}
+
+export function copyLocalDateSlots(from_date: string, to_dates: string[]): void {
+  const slots = getLocalDateSlots();
+  const sourceTimes = slots.filter(s => s.selected_date === from_date).map(s => s.time);
+  
+  // Remove target dates
+  let newSlots = slots.filter(s => !to_dates.includes(s.selected_date));
+  
+  // Add new copies
+  to_dates.forEach(targetDate => {
+    sourceTimes.forEach(time => {
+      newSlots.push({ selected_date: targetDate, time });
+    });
+  });
+  
+  saveLocalDateSlots(newSlots);
+}

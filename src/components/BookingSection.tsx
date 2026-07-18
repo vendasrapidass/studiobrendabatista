@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SERVICES, isDayAllowed, getTimesForDate, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
-import { addBooking, getBookings, getBlocks, getLocalWeekdaySlots, saveLocalWeekdaySlots } from '@/lib/bookingStore';
+import { addBooking, getBookings, getBlocks, getLocalWeekdaySlots, saveLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -35,6 +35,7 @@ const BookingSection = () => {
   const [googleBookings, setGoogleBookings] = useState<Booking[]>([]);
   const [googleBlocks, setGoogleBlocks] = useState<ScheduleBlock[]>([]);
   const [weekdaySlots, setWeekdaySlots] = useState<{ weekday: number; time: string }[]>([]);
+  const [dateSlots, setDateSlots] = useState<{ selected_date: string; time: string }[]>([]);
 
   // Load schedule events from Google Calendar API on mount to act as source of truth
   useEffect(() => {
@@ -42,6 +43,10 @@ const BookingSection = () => {
     const local = getLocalWeekdaySlots();
     if (local && local.length > 0) {
       setWeekdaySlots(local);
+    }
+    const localDates = getLocalDateSlots();
+    if (localDates && localDates.length > 0) {
+      setDateSlots(localDates);
     }
 
     fetch('/api/calendar?realtime=true')
@@ -57,6 +62,10 @@ const BookingSection = () => {
           setWeekdaySlots(data.weekdaySlots);
           saveLocalWeekdaySlots(data.weekdaySlots);
         }
+        if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+          setDateSlots(data.dateSpecificSlots);
+          saveLocalDateSlots(data.dateSpecificSlots);
+        }
       })
       .catch((err) => {
         console.error("Error loading events from Google Calendar API:", err);
@@ -70,10 +79,21 @@ const BookingSection = () => {
     }
 
     const dateStr = format(selectedDate, 'dd/MM/yyyy');
+    const dateIsoStr = format(selectedDate, 'yyyy-MM-dd');
     
-    // Check if weekday slots are configured in Whitelist
+    // 1. Check Date Specific Whitelist (ex: Calendar Exceptions)
+    const dateSpecific = dateSlots
+      .filter((s) => s.selected_date === dateIsoStr)
+      .map((s) => s.time)
+      .sort((a, b) => {
+        const [ha, ma] = a.split(':').map(Number);
+        const [hb, mb] = b.split(':').map(Number);
+        return (ha * 60 + ma) - (hb * 60 + mb);
+      });
+
+    // 2. Check Weekday Whitelist if no date specific slots
     const dayOfWeek = selectedDate.getDay();
-    const specificSlots = weekdaySlots
+    const weekdaySpecific = weekdaySlots
       .filter((s) => s.weekday === dayOfWeek)
       .map((s) => s.time)
       .sort((a, b) => {
@@ -82,9 +102,11 @@ const BookingSection = () => {
         return (ha * 60 + ma) - (hb * 60 + mb);
       });
 
-    const baseTimes = specificSlots.length > 0 
-      ? specificSlots 
-      : getTimesForDate(selectedDate);
+    const baseTimes = dateSpecific.length > 0 
+      ? dateSpecific 
+      : weekdaySpecific.length > 0
+        ? weekdaySpecific
+        : getTimesForDate(selectedDate);
 
     const calculateLocalSlots = () => {
       // Mescla reservas locais e do Google Calendar para evitar duplicados e manter consistência imediata
@@ -171,7 +193,7 @@ const BookingSection = () => {
 
     const localSlots = calculateLocalSlots();
     setAvailableTimes(localSlots);
-  }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks, weekdaySlots]);
+  }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks, weekdaySlots, dateSlots]);
 
   // Combined service name and price
   const combinedServiceName = useMemo(() => {

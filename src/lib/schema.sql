@@ -34,3 +34,12 @@ CREATE TABLE IF NOT EXISTS weekday_slots (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(weekday, time)
 );
+
+-- Horários Permitidos Whitelist por Data Específica (Brenda Batista)
+CREATE TABLE IF NOT EXISTS date_specific_slots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  selected_date DATE NOT NULL, -- Formato "YYYY-MM-DD"
+  time TEXT NOT NULL,          -- Formato "HH:mm"
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(selected_date, time)
+);

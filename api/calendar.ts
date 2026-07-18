@@ -44,6 +44,30 @@ async function getDynamicCalendarId(): Promise<string> {
   return 'guilhermesuzena10@gmail.com'; // fallback padrão
 }
 
+// Auxiliar para obter a grade de horários atualizada
+async function getUpdatedSlots() {
+  let weekdaySlots: any[] = [];
+  let dateSpecificSlots: any[] = [];
+  if (isDbConfigured) {
+    try {
+      const { data: wd } = await supabase
+        .from('weekday_slots')
+        .select('*')
+        .order('time', { ascending: true });
+      if (wd) weekdaySlots = wd;
+      
+      const { data: ds } = await supabase
+        .from('date_specific_slots')
+        .select('*')
+        .order('time', { ascending: true });
+      if (ds) dateSpecificSlots = ds;
+    } catch (e) {
+      console.error("Error fetching updated slots:", e);
+    }
+  }
+  return { weekdaySlots, dateSpecificSlots };
+}
+
 function parseDateTimeToSaoPaulo(isoString: string) {
   try {
     const dObj = new Date(isoString);
@@ -133,18 +157,14 @@ export default async function handler(req: any, res: any) {
     // ----------------------------------------------------
     if (req.method === 'GET' && req.query.action === 'get_slots') {
       if (!isDbConfigured) {
-        return res.status(200).json({ slots: [], db_disabled: true });
+        return res.status(200).json({ slots: [], dateSlots: [], db_disabled: true });
       }
       try {
-        const { data, error } = await supabase
-          .from('weekday_slots')
-          .select('*')
-          .order('time', { ascending: true });
-        if (error) throw error;
-        return res.status(200).json({ slots: data || [] });
+        const { weekdaySlots, dateSpecificSlots } = await getUpdatedSlots();
+        return res.status(200).json({ slots: weekdaySlots, dateSlots: dateSpecificSlots });
       } catch (err: any) {
         console.error("Error fetching slots:", err);
-        return res.status(200).json({ slots: [], db_disabled: true });
+        return res.status(200).json({ slots: [], dateSlots: [], db_disabled: true });
       }
     }
 
@@ -152,6 +172,7 @@ export default async function handler(req: any, res: any) {
       const now = new Date();
       
       let weekdaySlots: any[] = [];
+      let dateSpecificSlots: any[] = [];
       let db_error = !isDbConfigured;
 
       if (isDbConfigured) {
@@ -164,6 +185,16 @@ export default async function handler(req: any, res: any) {
             db_error = true;
           } else if (slotsData) {
             weekdaySlots = slotsData;
+          }
+
+          const { data: dateSlotsData, error: dateError } = await supabase
+            .from('date_specific_slots')
+            .select('*')
+            .order('time', { ascending: true });
+          if (dateError) {
+            db_error = true;
+          } else if (dateSlotsData) {
+            dateSpecificSlots = dateSlotsData;
           }
         } catch (err) {
           db_error = true;
@@ -345,7 +376,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks, weekdaySlots, db_disabled: db_error });
+        return res.status(200).json({ bookings, blocks, weekdaySlots, dateSpecificSlots, db_disabled: db_error });
       } else {
         // ----------------------------------------------------
         // DATABASE: Consultar registros do Supabase (Dashboard Admin)
@@ -391,7 +422,7 @@ export default async function handler(req: any, res: any) {
           }
         }
 
-        return res.status(200).json({ bookings, blocks, weekdaySlots, db_disabled: db_error });
+        return res.status(200).json({ bookings, blocks, weekdaySlots, dateSpecificSlots, db_disabled: db_error });
       }
     }
 
@@ -401,7 +432,8 @@ export default async function handler(req: any, res: any) {
     if (req.method === 'POST') {
       const { type } = req.body;
 
-      if (type === 'add_slot' || type === 'delete_slot' || type === 'clear_slots' || type === 'copy_slots') {
+      if (type === 'add_slot' || type === 'delete_slot' || type === 'clear_slots' || type === 'copy_slots' ||
+          type === 'add_date_slot' || type === 'delete_date_slot' || type === 'clear_date_slots' || type === 'copy_date_slots') {
         if (!isDbConfigured) {
           return res.status(503).json({ error: "Banco de dados desconfigurado. Usando modo offline local." });
         }
@@ -410,13 +442,13 @@ export default async function handler(req: any, res: any) {
       if (type === 'add_slot') {
         const { weekday, time } = req.body;
         try {
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('weekday_slots')
-            .insert([{ weekday, time }], { onConflict: 'weekday,time', ignoreDuplicates: true })
-            .select();
+            .insert([{ weekday, time }], { onConflict: 'weekday,time', ignoreDuplicates: true });
           
           if (error) throw error;
-          return res.status(200).json({ success: true, slot: data?.[0] || null });
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
           console.error("Error adding slot:", err);
           return res.status(500).json({ error: err.message });
@@ -432,7 +464,8 @@ export default async function handler(req: any, res: any) {
             .eq('weekday', weekday)
             .eq('time', time);
           if (error) throw error;
-          return res.status(200).json({ success: true });
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
           console.error("Error deleting slot:", err);
           return res.status(500).json({ error: err.message });
@@ -447,7 +480,8 @@ export default async function handler(req: any, res: any) {
             .delete()
             .eq('weekday', weekday);
           if (error) throw error;
-          return res.status(200).json({ success: true });
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
           console.error("Error clearing slots:", err);
           return res.status(500).json({ error: err.message });
@@ -480,9 +514,102 @@ export default async function handler(req: any, res: any) {
               if (insErr) throw insErr;
             }
           }
-          return res.status(200).json({ success: true });
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
           console.error("Error copying slots:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'add_date_slot') {
+        const { selected_date, time } = req.body;
+        try {
+          const { error } = await supabase
+            .from('date_specific_slots')
+            .insert([{ selected_date, time }], { onConflict: 'selected_date,time', ignoreDuplicates: true });
+          
+          if (error) throw error;
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
+        } catch (err: any) {
+          console.error("Error adding date slot:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'delete_date_slot') {
+        const { selected_date, time } = req.body;
+        try {
+          const { error } = await supabase
+            .from('date_specific_slots')
+            .delete()
+            .eq('selected_date', selected_date)
+            .eq('time', time);
+          if (error) throw error;
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
+        } catch (err: any) {
+          console.error("Error deleting date slot:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'clear_date_slots') {
+        const { selected_date } = req.body;
+        try {
+          const { error } = await supabase
+            .from('date_specific_slots')
+            .delete()
+            .eq('selected_date', selected_date);
+          if (error) throw error;
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
+        } catch (err: any) {
+          console.error("Error clearing date slots:", err);
+          return res.status(500).json({ error: err.message });
+        }
+      }
+
+      if (type === 'copy_date_slots') {
+        const { fromType, fromValue, toDates } = req.body;
+        try {
+          let times: string[] = [];
+          if (fromType === 'weekday') {
+            const { data, error } = await supabase
+              .from('weekday_slots')
+              .select('time')
+              .eq('weekday', Number(fromValue));
+            if (error) throw error;
+            times = (data || []).map(s => s.time);
+          } else {
+            const { data, error } = await supabase
+              .from('date_specific_slots')
+              .select('time')
+              .eq('selected_date', fromValue);
+            if (error) throw error;
+            times = (data || []).map(s => s.time);
+          }
+          
+          for (const targetDate of toDates) {
+            const { error: delErr } = await supabase
+              .from('date_specific_slots')
+              .delete()
+              .eq('selected_date', targetDate);
+            if (delErr) throw delErr;
+            
+            if (times.length > 0) {
+              const inserts = times.map(time => ({ selected_date: targetDate, time }));
+              const { error: insErr } = await supabase
+                .from('date_specific_slots')
+                .insert(inserts, { onConflict: 'selected_date,time', ignoreDuplicates: true });
+              if (insErr) throw insErr;
+            }
+          }
+          const updated = await getUpdatedSlots();
+          return res.status(200).json({ success: true, ...updated });
+        } catch (err: any) {
+          console.error("Error copying date slots:", err);
           return res.status(500).json({ error: err.message });
         }
       }
