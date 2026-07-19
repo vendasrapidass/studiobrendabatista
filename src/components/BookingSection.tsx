@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SERVICES, isDayAllowed, getTimesForDate, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
-import { addBooking, getBookings, getBlocks, getLocalWeekdaySlots, saveLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots } from '@/lib/bookingStore';
+import { addBooking, getBookings, getBlocks } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -36,21 +36,21 @@ const BookingSection = () => {
   const [googleBlocks, setGoogleBlocks] = useState<ScheduleBlock[]>([]);
   const [weekdaySlots, setWeekdaySlots] = useState<{ weekday: number; time: string }[]>([]);
   const [dateSlots, setDateSlots] = useState<{ selected_date: string; time: string }[]>([]);
+  const [loadingTimes, setLoadingTimes] = useState(false);
 
-  // Load schedule events from Google Calendar API on mount to act as source of truth
+  // Load schedule events directly from the API on selectedDate change to act as real-time source of truth
   useEffect(() => {
-    // Initial local storage load
-    const local = getLocalWeekdaySlots();
-    if (local && local.length > 0) {
-      setWeekdaySlots(local);
-    }
-    const localDates = getLocalDateSlots();
-    if (localDates && localDates.length > 0) {
-      setDateSlots(localDates);
+    if (!selectedDate) {
+      setAvailableTimes([]);
+      return;
     }
 
+    setLoadingTimes(true);
     fetch('/api/calendar?realtime=true')
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error('Erro ao carregar os dados da agenda.');
+        return res.json();
+      })
       .then((data) => {
         if (Array.isArray(data.bookings)) {
           setGoogleBookings(data.bookings);
@@ -58,19 +58,20 @@ const BookingSection = () => {
         if (Array.isArray(data.blocks)) {
           setGoogleBlocks(data.blocks);
         }
-        if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
+        if (Array.isArray(data.weekdaySlots)) {
           setWeekdaySlots(data.weekdaySlots);
-          saveLocalWeekdaySlots(data.weekdaySlots);
         }
-        if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
+        if (Array.isArray(data.dateSpecificSlots)) {
           setDateSlots(data.dateSpecificSlots);
-          saveLocalDateSlots(data.dateSpecificSlots);
         }
       })
       .catch((err) => {
         console.error("Error loading events from Google Calendar API:", err);
+      })
+      .finally(() => {
+        setLoadingTimes(false);
       });
-  }, []);
+  }, [selectedDate]);
 
   useEffect(() => {
     if (!selectedDate || !selectedService) {
@@ -473,27 +474,33 @@ const BookingSection = () => {
                 <p className="text-sm text-muted-foreground mb-4 text-center">
                   {selectedDate && format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
                 </p>
-                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-                  {availableTimes.map((time) => (
-                    <button
-                      key={time}
-                      onClick={() => handleSelectTime(time)}
-                      className={cn(
-                        'py-3 rounded-xl font-mono font-medium border transition-all text-sm md:text-base',
-                        selectedTime === time
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'bg-secondary border-border hover:border-primary/50'
-                      )}
-                    >
-                      {time}
-                    </button>
-                  ))}
-                  {availableTimes.length === 0 && (
-                    <p className="col-span-full text-center text-sm text-muted-foreground py-8">
-                      Nenhum horário disponível para este serviço nesta data.
-                    </p>
-                  )}
-                </div>
+                {loadingTimes ? (
+                  <div className="col-span-full text-center text-sm text-muted-foreground py-8">
+                    Carregando horários disponíveis...
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                    {availableTimes.map((time) => (
+                      <button
+                        key={time}
+                        onClick={() => handleSelectTime(time)}
+                        className={cn(
+                          'py-3 rounded-xl font-mono font-medium border transition-all text-sm md:text-base',
+                          selectedTime === time
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-secondary border-border hover:border-primary/50'
+                        )}
+                      >
+                        {time}
+                      </button>
+                    ))}
+                    {availableTimes.length === 0 && (
+                      <p className="col-span-full text-center text-sm text-muted-foreground py-8">
+                        Nenhum horário disponível para este serviço nesta data.
+                      </p>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 

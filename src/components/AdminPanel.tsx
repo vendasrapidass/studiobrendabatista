@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Booking, SERVICES, generateWhatsAppUrl, formatPhone, ScheduleBlock } from '@/lib/types';
-import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock, getLocalWeekdaySlots, saveLocalWeekdaySlots, addLocalWeekdaySlot, removeLocalWeekdaySlot, clearLocalWeekdaySlotsForDay, copyLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots, addLocalDateSlot, removeLocalDateSlot, clearLocalDateSlotsForDate, copyLocalWeekdayToDateSlots, copyLocalDateSlots } from '@/lib/bookingStore';
+import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock } from '@/lib/bookingStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, DollarSign, Sparkles, Scissors, TrendingUp, ArrowLeft, Plus, X, Check, Clock, Pencil, Trash2, Phone, Search, Settings } from 'lucide-react';
@@ -96,8 +96,7 @@ const AdminPanel = () => {
       }
       setIsSavingSlot(true);
       // Optimistic update
-      addLocalWeekdaySlot({ weekday: selectedWeekday, time: newSlotTime });
-      setWhitelistSlots(getLocalWeekdaySlots());
+      setWhitelistSlots([...whitelistSlots, { weekday: selectedWeekday, time: newSlotTime }]);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -110,18 +109,17 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Horário adicionado com sucesso!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Salvo localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar com o servidor.");
+          reload();
         })
         .finally(() => setIsSavingSlot(false));
     } else {
@@ -131,8 +129,7 @@ const AdminPanel = () => {
       }
       setIsSavingSlot(true);
       // Optimistic update
-      addLocalDateSlot({ selected_date: selectedDateStr, time: newSlotTime });
-      setDateSlots(getLocalDateSlots());
+      setDateSlots([...dateSlots, { selected_date: selectedDateStr, time: newSlotTime }]);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -145,18 +142,17 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Horário adicionado com sucesso!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Salvo localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar com o servidor.");
+          reload();
         })
         .finally(() => setIsSavingSlot(false));
     }
@@ -165,8 +161,8 @@ const AdminPanel = () => {
   const handleDeleteSlot = (weekdayOrDate: number | string, time: string, isDate: boolean = false) => {
     if (!isDate) {
       const wk = Number(weekdayOrDate);
-      removeLocalWeekdaySlot(wk, time);
-      setWhitelistSlots(getLocalWeekdaySlots());
+      // Optimistic update
+      setWhitelistSlots(whitelistSlots.filter(s => !(s.weekday === wk && s.time === time)));
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -179,23 +175,22 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Horário excluído!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Removido localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar exclusão.");
+          reload();
         });
     } else {
       const dt = String(weekdayOrDate);
-      removeLocalDateSlot(dt, time);
-      setDateSlots(getLocalDateSlots());
+      // Optimistic update
+      setDateSlots(dateSlots.filter(s => !(s.selected_date === dt && s.time === time)));
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -208,18 +203,17 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Horário excluído!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Removido localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar exclusão.");
+          reload();
         });
     }
   };
@@ -227,8 +221,8 @@ const AdminPanel = () => {
   const handleClearSlots = () => {
     if (slotsMode === 'weekly') {
       if (!window.confirm("Deseja realmente limpar todos os horários deste dia?")) return;
-      clearLocalWeekdaySlotsForDay(selectedWeekday);
-      setWhitelistSlots(getLocalWeekdaySlots());
+      // Optimistic update
+      setWhitelistSlots(whitelistSlots.filter(s => s.weekday !== selectedWeekday));
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -241,24 +235,23 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Grade limpa!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Limpo localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar limpeza.");
+          reload();
         });
     } else {
       const formattedDate = selectedDateStr.split('-').reverse().join('/');
       if (!window.confirm(`Deseja realmente limpar todos os horários do dia ${formattedDate}?`)) return;
-      clearLocalDateSlotsForDate(selectedDateStr);
-      setDateSlots(getLocalDateSlots());
+      // Optimistic update
+      setDateSlots(dateSlots.filter(s => s.selected_date !== selectedDateStr));
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -271,18 +264,17 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Grade limpa!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Limpo localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar limpeza.");
+          reload();
         });
     }
   };
@@ -293,8 +285,6 @@ const AdminPanel = () => {
         toast.warning("Selecione pelo menos um dia de destino.");
         return;
       }
-      copyLocalWeekdaySlots(selectedWeekday, targetDaysForCopy);
-      setWhitelistSlots(getLocalWeekdaySlots());
       setShowCopyModal(false);
 
       fetch('/api/calendar', {
@@ -308,20 +298,19 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Grade de horários copiada!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
           setTargetDaysForCopy([]);
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Copiado localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar cópia.");
           setTargetDaysForCopy([]);
+          reload();
         });
     } else {
       const parsedDates = targetDatesForCopyStr
@@ -342,12 +331,6 @@ const AdminPanel = () => {
         return;
       }
 
-      if (copySourceType === 'weekday') {
-        copyLocalWeekdayToDateSlots(selectedWeekday, parsedDates);
-      } else {
-        copyLocalDateSlots(selectedDateStr, parsedDates);
-      }
-      setDateSlots(getLocalDateSlots());
       setShowCopyModal(false);
 
       fetch('/api/calendar', {
@@ -366,20 +349,19 @@ const AdminPanel = () => {
         })
         .then((data) => {
           toast.success("Grade de horários copiada!");
-          if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-            saveLocalWeekdaySlots(data.weekdaySlots);
+          if (Array.isArray(data.weekdaySlots)) {
             setWhitelistSlots(data.weekdaySlots);
           }
-          if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-            saveLocalDateSlots(data.dateSpecificSlots);
+          if (Array.isArray(data.dateSpecificSlots)) {
             setDateSlots(data.dateSpecificSlots);
           }
           setTargetDatesForCopyStr('');
         })
         .catch((err) => {
           console.error(err);
-          toast.error("Copiado localmente. Erro ao sincronizar.");
+          toast.error("Erro ao sincronizar cópia.");
           setTargetDatesForCopyStr('');
+          reload();
         });
     }
   };
@@ -415,12 +397,10 @@ const AdminPanel = () => {
   };
 
   const reload = () => {
-    // Carregamento imediato do local storage para feedback instantâneo
+    // Carregamento imediato do local storage para agendamentos e bloqueios
     setBookings(getBookings());
     setCompleted(getCompleted());
     setBlocks(getBlocks());
-    setWhitelistSlots(getLocalWeekdaySlots());
-    setDateSlots(getLocalDateSlots());
 
     // Busca eventos em tempo real do Google Calendar API (fonte da verdade)
     fetch(`/api/calendar?t=${Date.now()}`, {
@@ -447,12 +427,10 @@ const AdminPanel = () => {
           saveBlocks(data.blocks);
           setBlocks(data.blocks);
         }
-        if (Array.isArray(data.weekdaySlots) && !data.db_disabled) {
-          saveLocalWeekdaySlots(data.weekdaySlots);
+        if (Array.isArray(data.weekdaySlots)) {
           setWhitelistSlots(data.weekdaySlots);
         }
-        if (Array.isArray(data.dateSpecificSlots) && !data.db_disabled) {
-          saveLocalDateSlots(data.dateSpecificSlots);
+        if (Array.isArray(data.dateSpecificSlots)) {
           setDateSlots(data.dateSpecificSlots);
         }
       })
