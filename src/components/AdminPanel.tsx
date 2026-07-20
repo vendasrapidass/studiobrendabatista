@@ -1553,7 +1553,7 @@ const AdminPanel = () => {
               <div className="bg-card/85 backdrop-blur-xl p-6 md:p-8 rounded-2xl border border-primary/10 shadow-[0_0_0_1px_rgba(255,255,255,0.05),0_20px_50px_-15px_rgba(0,0,0,0.5)] space-y-6">
                 <div>
                   <h3 className="text-lg font-bold text-foreground mb-1">Horários de Atendimento</h3>
-                  <p className="text-xs text-muted-foreground">Configure os horários de início permitidos no estúdio. Escolha entre a Grade Semanal padrão ou cadastre exceções para Datas Específicas.</p>
+                  <p className="text-xs text-muted-foreground">Configure os horários de início permitidos no estúdio por dia da semana ou por data específica. Se um dia tiver 0 horários, ele será considerado fechado.</p>
                 </div>
 
                 {/* Seletor de Modo: Semanal vs Exceção por Data */}
@@ -1670,12 +1670,13 @@ const AdminPanel = () => {
                     ? whitelistSlots.filter(s => s.weekday === selectedWeekday) 
                     : dateSlots.filter(s => s.selected_date === selectedDateStr)
                   ).length === 0) ? (
-                    <div className="text-center py-8 bg-background/20 rounded-xl border border-dashed border-primary/5">
-                      <Clock className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">
-                        {slotsMode === 'weekly' 
-                          ? "Nenhum horário cadastrado. (Modo Padrão Ativo)" 
-                          : "Nenhum horário específico nesta data. (Usa Grade Semanal)"}
+                    <div className="text-center py-8 bg-background/20 rounded-xl border border-dashed border-primary/10">
+                      <Clock className="w-8 h-8 text-primary/40 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-primary/90">
+                        Nenhum horário liberado para {slotsMode === 'weekly' ? 'este dia da semana' : 'esta data'} (Dia Fechado).
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Utilize o campo acima para selecionar o horário e clique em "+ Adicionar" para liberar novos horários.
                       </p>
                     </div>
                   ) : (

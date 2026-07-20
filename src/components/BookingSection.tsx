@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { SERVICES, isDayAllowed, getTimesForDate, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
+import { SERVICES, isDayAllowed, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
 import { addBooking, getBookings, getBlocks } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -105,9 +105,7 @@ const BookingSection = () => {
 
     const baseTimes = dateSpecific.length > 0 
       ? dateSpecific 
-      : weekdaySpecific.length > 0
-        ? weekdaySpecific
-        : getTimesForDate(selectedDate);
+      : weekdaySpecific;
 
     const calculateLocalSlots = () => {
       // Mescla reservas locais e do Google Calendar para evitar duplicados e manter consistência imediata
@@ -496,7 +494,7 @@ const BookingSection = () => {
                     ))}
                     {availableTimes.length === 0 && (
                       <p className="col-span-full text-center text-sm text-muted-foreground py-8">
-                        Nenhum horário disponível para este serviço nesta data.
+                        Nenhum horário disponível nesta data (Dia Fechado).
                       </p>
                     )}
                   </div>
