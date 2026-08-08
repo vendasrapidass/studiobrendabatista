@@ -312,7 +312,7 @@ const BookingSection = () => {
     setIsSubmitting(true);
 
     const bookingWithStatus = comprovanteUrl
-      ? { ...booking, status: 'pendente_confirmacao' as const, comprovante_url: comprovanteUrl }
+      ? { ...booking, comprovante_url: comprovanteUrl }
       : booking;
 
     const finishBooking = () => {
