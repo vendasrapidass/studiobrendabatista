@@ -321,7 +321,7 @@ const BookingSection = () => {
       let msg = `✨ *NOVO AGENDAMENTO - STUDIO BRENDA BATISTA* ✨\n\n👤 *Cliente:* ${bookingWithStatus.name}\n📱 *Telefone:* ${bookingWithStatus.phone}\n✂️ *Serviço:* ${bookingWithStatus.service}\n📅 *Data/Horário:* ${bookingWithStatus.date} às ${bookingWithStatus.time}\n💰 *Valor Total:* R$ ${bookingWithStatus.price},00`;
 
       if (comprovanteUrl) {
-        msg += `\n💳 *Sinal Pago:* R$ ${SINAL_VALUE},00\n\n📎 *Comprovante do Sinal:*\n${comprovanteUrl}\n\n_Aguardando confirmação final do estúdio._`;
+        msg += `\n💳 *Sinal Pago:* R$ ${SINAL_VALUE},00\n\n📎 *Comprovante do Sinal:*\n${comprovanteUrl}`;
       } else {
         msg += `\n\nObrigado! 💕`;
       }
