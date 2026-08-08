@@ -767,17 +767,15 @@ const BookingSection = () => {
 
                   {/* QR Code */}
                   <div className="flex justify-center mb-5">
-                    <div className="p-2 rounded-2xl overflow-hidden" style={{ background: '#ffffff', boxShadow: '0 0 30px rgba(201,162,39,0.3)' }}>
-                      <div className="w-44 h-44 overflow-hidden relative rounded-xl">
-                        <img
-                          src="/pix-brenda.png"
-                          alt="QR Code Pix - Brenda Coelho Batista"
-                          className="absolute top-[-5%] w-full h-[120%] object-cover object-top"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${PIX_KEY}&bgcolor=FFFFFF&color=000000`;
-                          }}
-                        />
-                      </div>
+                    <div className="p-3 rounded-2xl" style={{ background: '#ffffff', boxShadow: '0 0 30px rgba(201,162,39,0.3)' }}>
+                      <img
+                        src="/pix-brenda.png"
+                        alt="QR Code Pix - Brenda Coelho Batista"
+                        className="w-44 h-44 object-contain rounded-lg"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${PIX_KEY}&bgcolor=FFFFFF&color=000000`;
+                        }}
+                      />
                     </div>
                   </div>
 
