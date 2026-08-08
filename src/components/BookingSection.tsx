@@ -902,6 +902,20 @@ const BookingSection = () => {
                       Anexe o comprovante para liberar o botão
                     </p>
                   )}
+
+                  {/* Back button */}
+                  <div className="mt-5 text-center">
+                    <button
+                      onClick={() => {
+                        setShowPixModal(false);
+                        setComprovanteFile(null);
+                      }}
+                      className="text-xs hover:underline transition-all"
+                      style={{ color: '#a07820' }}
+                    >
+                      ← Voltar para as seleções
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
