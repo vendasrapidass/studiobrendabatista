@@ -37,6 +37,37 @@ const BookingSection = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingBookingRef = useRef<any>(null);
 
+  // Timer state
+  const [timeLeft, setTimeLeft] = useState(9 * 60);
+
+  useEffect(() => {
+    if (!showPixModal) {
+      setTimeLeft(9 * 60);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setShowPixModal(false);
+          setComprovanteFile(null);
+          alert("O tempo para reservar a vaga expirou. Por favor, tente novamente.");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [showPixModal]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const totalDuration = useMemo(() => {
     if (!selectedService) return 0;
     const baseTime = selectedOption ? selectedOption.time : selectedService.time;
@@ -763,6 +794,10 @@ const BookingSection = () => {
                   <div className="rounded-xl p-3 mb-5 text-center text-xs leading-relaxed" style={{ background: 'rgba(201,162,39,0.1)', border: '1px solid rgba(201,162,39,0.25)', color: '#d4a843' }}>
                     Pedimos um sinal de <strong>R$ {SINAL_VALUE},00</strong> via Pix para garantir seu horário.<br />
                     <span style={{ color: '#a07820' }}>O valor é descontado no total do serviço no dia do atendimento.</span>
+                    <div className="mt-2 flex items-center justify-center gap-1.5 opacity-90">
+                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#c9a227' }}></span>
+                      <span className="font-medium" style={{ color: '#c9a227' }}>Expira em <span className="font-mono">{formatTime(timeLeft)}</span></span>
+                    </div>
                   </div>
 
                   {/* QR Code */}
