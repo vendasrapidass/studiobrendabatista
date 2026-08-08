@@ -98,6 +98,13 @@ function parseDateTimeToSaoPaulo(isoString: string) {
 }
 
 function getServicePrice(service: string): number {
+  if (!service) return 0;
+
+  if (service.includes('+')) {
+    const parts = service.split('+').map(p => p.trim());
+    return parts.reduce((acc, part) => acc + getServicePrice(part), 0);
+  }
+
   const cleanSvc = service.toLowerCase().trim();
   
   // Remoção cílios
