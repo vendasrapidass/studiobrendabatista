@@ -43,7 +43,7 @@ export const SERVICES: Service[] = [
   { name: 'Mega Fada', time: 120, price: 185, image: 'https://i.imgur.com/SzmT968.jpeg', category: 'Cílios - Aplicação' },
   { name: 'Mega Brasileiro', time: 120, price: 170, image: 'https://i.imgur.com/85hifhM.jpeg', category: 'Cílios - Aplicação' },
   { name: 'Lash Lifting', time: 90, price: 110, image: 'https://i.imgur.com/IQZ0AhJ.jpeg', category: 'Cílios - Aplicação' },
-  { name: 'Brow Lamination', time: 100, price: 110, image: 'https://i.imgur.com/hzv1r1T.jpeg', category: 'Cílios - Aplicação' },
+  { name: 'Brow Lamination', time: 100, price: 110, image: 'https://i.imgur.com/hzv1r1T.jpeg', category: 'Design - Sobrancelha' },
 
   // Cílios - Manutenção
   {
@@ -105,6 +105,15 @@ export const SERVICES: Service[] = [
 
   // Limpeza de Pele
   { name: 'Limpeza de Pele', time: 60, price: 100, image: 'https://i.imgur.com/5NEvvvx.jpeg', category: 'Limpeza de Pele' }
+];
+
+export const ORDER_BUMPS_NAMES = [
+  'Design Personalizado',
+  'Design com Henna',
+  'Limpeza de Pele',
+  'Remoção de Extensão',
+  'Lash Lifting',
+  'Brow Lamination'
 ];
 
 export const GALLERY_IMAGES = [

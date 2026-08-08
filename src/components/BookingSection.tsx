@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { SERVICES, isDayAllowed, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
+import { SERVICES, ORDER_BUMPS_NAMES, isDayAllowed, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
 import { addBooking, getBookings, getBlocks } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -268,24 +268,24 @@ const BookingSection = () => {
   };
 
   const handleSkipExtras = () => {
-    setStep(2);
+    setStep(3);
   };
 
   const handleConfirmExtras = () => {
-    setStep(2);
+    setStep(3);
   };
 
   const handleSelectDate = (date: Date | undefined) => {
     if (date) {
       setSelectedDate(date);
       setSelectedTime('');
-      setStep(3);
+      setStep(4);
     }
   };
 
   const handleSelectTime = (time: string) => {
     setSelectedTime(time);
-    setStep(4);
+    setStep(5);
   };
 
   const handleConfirm = () => {
@@ -442,7 +442,7 @@ const BookingSection = () => {
         <div className="glass rounded-3xl p-4 md:p-8 card-shadow min-h-[400px]">
           {/* Steps */}
           <div className="flex justify-between mb-10 px-2 md:px-4">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div key={i} className="flex flex-col items-center gap-2">
                 <div
                   className={cn(
@@ -453,7 +453,7 @@ const BookingSection = () => {
                   {i}
                 </div>
                 <span className="text-xs text-muted-foreground hidden md:block">
-                  {['Serviço', 'Data', 'Horário', 'Dados'][i - 1]}
+                  {['Serviço', 'Extras', 'Data', 'Horário', 'Dados'][i - 1]}
                 </span>
               </div>
             ))}
@@ -529,7 +529,57 @@ const BookingSection = () => {
             )}
 
             {step === 2 && (
-              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="flex justify-center">
+              <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="max-w-xl mx-auto">
+                <div className="text-center mb-6">
+                  <h3 className="text-xl md:text-2xl font-bold">Deseja adicionar algo a mais?</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Aproveite a visita e agende serviços extras juntos!</p>
+                </div>
+                
+                <div className="grid gap-3 mb-8">
+                  {SERVICES.filter(s => ORDER_BUMPS_NAMES.includes(s.name) && s.name !== selectedService?.name).map(extra => {
+                    const isSelected = extras.some(e => e.name === extra.name);
+                    return (
+                      <button
+                        key={extra.name}
+                        onClick={() => handleToggleExtra(extra)}
+                        className={cn(
+                          "flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
+                          isSelected 
+                            ? "border-primary bg-primary/5 shadow-[0_4px_20px_-5px_hsl(45_97%_54%/0.3)]" 
+                            : "border-border bg-card hover:border-primary/50 hover:shadow-sm"
+                        )}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center border transition-colors",
+                            isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground"
+                          )}>
+                            {isSelected && <Check className="w-4 h-4" />}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm">{extra.name}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">+{extra.time} min</p>
+                          </div>
+                        </div>
+                        <p className="font-mono font-bold text-primary">R$ {extra.price}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={handleConfirmExtras}
+                    className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl transition-all hover:shadow-[0_0_25px_-5px_hsl(45_97%_54%/0.5)] hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    {extras.length > 0 ? 'Confirmar Extras e Avançar' : 'Avançar sem extras'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="flex justify-center">
                 <div className="bg-secondary rounded-2xl p-4 border border-border">
                   <Calendar
                     mode="single"
@@ -550,8 +600,8 @@ const BookingSection = () => {
               </motion.div>
             )}
 
-            {step === 3 && (
-              <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+            {step === 4 && (
+              <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                 <p className="text-sm text-muted-foreground mb-4 text-center">
                   {selectedDate && format(selectedDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
                 </p>
@@ -585,7 +635,7 @@ const BookingSection = () => {
               </motion.div>
             )}
 
-            {step === 4 && (
+            {step === 5 && (
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }} className="max-w-md mx-auto">
                 <div className="bg-secondary/50 rounded-2xl p-4 mb-6 border border-border text-sm space-y-1">
                   <p><span className="text-muted-foreground">Serviço:</span> <span className="font-semibold">{combinedServiceName}</span></p>
