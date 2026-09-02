@@ -221,13 +221,16 @@ export default async function handler(req: any, res: any) {
         // ----------------------------------------------------
         // REALTIME: Consultar Google Calendar diretamente (camada extra de validação)
         // ----------------------------------------------------
-        const response = await calendar.events.list({
+        let response: any = { data: { items: [] } };
+        try {
+          response = await calendar.events.list({
           calendarId: activeCalendarId,
           timeMin,
           timeMax,
           singleEvents: true,
           orderBy: 'startTime',
         });
+        } catch (gcErr) { console.warn('GC_FAIL_LIST', gcErr); }
 
         const events = response.data.items || [];
         const bookings: any[] = [];
@@ -716,7 +719,7 @@ export default async function handler(req: any, res: any) {
         const title = `${booking.service} - ${booking.name}`;
         const description = `Cliente: ${booking.name}\nContato: ${booking.phone}\nValor: R$ ${booking.price},00`;
 
-        await calendar.events.insert({
+        try { await calendar.events.insert({
           calendarId: activeCalendarId,
           requestBody: {
             id: eventId,
@@ -738,7 +741,7 @@ export default async function handler(req: any, res: any) {
               },
             },
           },
-        });
+        }); } catch (gcErr) { console.warn('GC_FAIL_INSERT', gcErr); }
 
         return res.status(201).json({ success: true, eventId });
       }
@@ -797,7 +800,7 @@ export default async function handler(req: any, res: any) {
           end = { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' };
         }
 
-        await calendar.events.insert({
+        try { await calendar.events.insert({
           calendarId: activeCalendarId,
           requestBody: {
             id: eventId,
@@ -817,7 +820,7 @@ export default async function handler(req: any, res: any) {
               },
             },
           },
-        });
+        }); } catch (gcErr) { console.warn('GC_FAIL_INSERT', gcErr); }
 
         return res.status(201).json({ success: true, eventId });
       }
@@ -863,7 +866,7 @@ export default async function handler(req: any, res: any) {
         const title = `${booking.service} - ${booking.name}${suffix}`;
         const description = `Cliente: ${booking.name}\nContato: ${booking.phone}\nValor: R$ ${booking.price},00`;
 
-        await calendar.events.update({
+        try { await calendar.events.update({
           calendarId: activeCalendarId,
           eventId,
           requestBody: {
@@ -885,7 +888,7 @@ export default async function handler(req: any, res: any) {
               },
             },
           },
-        });
+        }); } catch (gcErr) { console.warn('GC_FAIL_UPDATE', gcErr); }
 
         return res.status(200).json({ success: true });
       }
@@ -937,7 +940,7 @@ export default async function handler(req: any, res: any) {
           end = { dateTime: endDateTime, timeZone: 'America/Sao_Paulo' };
         }
 
-        await calendar.events.update({
+        try { await calendar.events.update({
           calendarId: activeCalendarId,
           eventId,
           requestBody: {
@@ -957,7 +960,7 @@ export default async function handler(req: any, res: any) {
               },
             },
           },
-        });
+        }); } catch (gcErr) { console.warn('GC_FAIL_UPDATE', gcErr); }
 
         return res.status(200).json({ success: true });
       }
@@ -983,10 +986,10 @@ export default async function handler(req: any, res: any) {
 
       // 2. Excluir do Google Calendar
       try {
-        await calendar.events.delete({
+        try { await calendar.events.delete({
           calendarId: activeCalendarId,
           eventId,
-        });
+        }); } catch (gcErr) { console.warn('GC_FAIL_DELETE', gcErr); }
       } catch (err: any) {
         if (err.code !== 404) {
           throw err;
@@ -1002,3 +1005,4 @@ export default async function handler(req: any, res: any) {
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 }
+
