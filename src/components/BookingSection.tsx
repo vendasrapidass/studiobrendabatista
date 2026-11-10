@@ -219,7 +219,13 @@ const BookingSection = () => {
     };
 
     const localSlots = calculateLocalSlots();
-    setAvailableTimes(localSlots);
+    let finalSlots = localSlots;
+    if (!finalSlots || finalSlots.length === 0) {
+      finalSlots = dayOfWeek === 6
+        ? ['08:30', '09:30', '10:30', '11:30', '13:00', '14:00', '15:30', '16:30']
+        : ['08:30', '09:30', '10:30', '11:30', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+    }
+    setAvailableTimes(finalSlots);
   }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks, weekdaySlots, dateSlots]);
 
   // Combined service name and price
