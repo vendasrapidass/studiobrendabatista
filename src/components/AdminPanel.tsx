@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Booking, SERVICES, generateWhatsAppUrl, formatPhone, ScheduleBlock } from '@/lib/types';
-import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock } from '@/lib/bookingStore';
+import { getBookings, saveBookings, getCompleted, saveCompleted, addCompleted, removeCompleted, addBooking, getBlocks, saveBlocks, addBlock, removeBlock, getLocalWeekdaySlots, saveLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots } from '@/lib/bookingStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarDays, DollarSign, Sparkles, Scissors, TrendingUp, ArrowLeft, Plus, X, Check, Clock, Pencil, Trash2, Phone, Search, Settings } from 'lucide-react';
@@ -62,8 +62,8 @@ const AdminPanel = () => {
   const [isProvisioning, setIsProvisioning] = useState(false);
 
   // Slots Whitelist editor state
-  const [whitelistSlots, setWhitelistSlots] = useState<{ id?: string; weekday: number; time: string }[]>([]);
-  const [dateSlots, setDateSlots] = useState<{ id?: string; selected_date: string; time: string }[]>([]);
+  const [whitelistSlots, setWhitelistSlots] = useState<{ id?: string; weekday: number; time: string }[]>(getLocalWeekdaySlots());
+  const [dateSlots, setDateSlots] = useState<{ id?: string; selected_date: string; time: string }[]>(getLocalDateSlots());
   const [slotsMode, setSlotsMode] = useState<'weekly' | 'specific'>('weekly');
   const [selectedWeekday, setSelectedWeekday] = useState<number>(1);
   const [selectedDateStr, setSelectedDateStr] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -90,13 +90,16 @@ const AdminPanel = () => {
     if (!newSlotTime) return;
 
     if (slotsMode === 'weekly') {
-      if (whitelistSlots.some(s => s.weekday === selectedWeekday && s.time === newSlotTime)) {
+      const wk = Number(selectedWeekday);
+      if (whitelistSlots.some(s => Number(s.weekday) === wk && s.time === newSlotTime)) {
         toast.warning("Este horário já está cadastrado para este dia.");
         return;
       }
       setIsSavingSlot(true);
       // Optimistic update
-      setWhitelistSlots([...whitelistSlots, { weekday: selectedWeekday, time: newSlotTime }]);
+      const updatedWk = [...whitelistSlots, { weekday: wk, time: newSlotTime }];
+      setWhitelistSlots(updatedWk);
+      saveLocalWeekdaySlots(updatedWk);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -129,7 +132,9 @@ const AdminPanel = () => {
       }
       setIsSavingSlot(true);
       // Optimistic update
-      setDateSlots([...dateSlots, { selected_date: selectedDateStr, time: newSlotTime }]);
+      const updatedDates = [...dateSlots, { selected_date: selectedDateStr, time: newSlotTime }];
+      setDateSlots(updatedDates);
+      saveLocalDateSlots(updatedDates);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -162,7 +167,9 @@ const AdminPanel = () => {
     if (!isDate) {
       const wk = Number(weekdayOrDate);
       // Optimistic update
-      setWhitelistSlots(whitelistSlots.filter(s => !(s.weekday === wk && s.time === time)));
+      const updatedWk = whitelistSlots.filter(s => !(Number(s.weekday) === wk && s.time === time));
+      setWhitelistSlots(updatedWk);
+      saveLocalWeekdaySlots(updatedWk);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -222,7 +229,10 @@ const AdminPanel = () => {
     if (slotsMode === 'weekly') {
       if (!window.confirm("Deseja realmente limpar todos os horários deste dia?")) return;
       // Optimistic update
-      setWhitelistSlots(whitelistSlots.filter(s => s.weekday !== selectedWeekday));
+      const wk = Number(selectedWeekday);
+      const updatedWk = whitelistSlots.filter(s => Number(s.weekday) !== wk);
+      setWhitelistSlots(updatedWk);
+      saveLocalWeekdaySlots(updatedWk);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -251,7 +261,9 @@ const AdminPanel = () => {
       const formattedDate = selectedDateStr.split('-').reverse().join('/');
       if (!window.confirm(`Deseja realmente limpar todos os horários do dia ${formattedDate}?`)) return;
       // Optimistic update
-      setDateSlots(dateSlots.filter(s => s.selected_date !== selectedDateStr));
+      const updatedDates = dateSlots.filter(s => s.selected_date !== selectedDateStr);
+      setDateSlots(updatedDates);
+      saveLocalDateSlots(updatedDates);
 
       fetch('/api/calendar', {
         method: 'POST',
@@ -429,9 +441,11 @@ const AdminPanel = () => {
         }
         if (Array.isArray(data.weekdaySlots)) {
           setWhitelistSlots(data.weekdaySlots);
+          saveLocalWeekdaySlots(data.weekdaySlots);
         }
         if (Array.isArray(data.dateSpecificSlots)) {
           setDateSlots(data.dateSpecificSlots);
+          saveLocalDateSlots(data.dateSpecificSlots);
         }
       })
       .catch((err) => {
@@ -1661,13 +1675,13 @@ const AdminPanel = () => {
                   <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest block">
                     Horários Ativos ({
                       slotsMode === 'weekly'
-                        ? whitelistSlots.filter(s => s.weekday === selectedWeekday).length
+                        ? whitelistSlots.filter(s => Number(s.weekday) === Number(selectedWeekday)).length
                         : dateSlots.filter(s => s.selected_date === selectedDateStr).length
                     })
                   </label>
                   
                   {((slotsMode === 'weekly' 
-                    ? whitelistSlots.filter(s => s.weekday === selectedWeekday) 
+                    ? whitelistSlots.filter(s => Number(s.weekday) === Number(selectedWeekday)) 
                     : dateSlots.filter(s => s.selected_date === selectedDateStr)
                   ).length === 0) ? (
                     <div className="text-center py-8 bg-background/20 rounded-xl border border-dashed border-primary/10">
@@ -1682,7 +1696,7 @@ const AdminPanel = () => {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {(slotsMode === 'weekly' 
-                        ? whitelistSlots.filter(s => s.weekday === selectedWeekday).sort((a,b) => a.time.localeCompare(b.time))
+                        ? whitelistSlots.filter(s => Number(s.weekday) === Number(selectedWeekday)).sort((a,b) => a.time.localeCompare(b.time))
                         : dateSlots.filter(s => s.selected_date === selectedDateStr).sort((a,b) => a.time.localeCompare(b.time))
                       ).map((slot, index) => (
                         <div

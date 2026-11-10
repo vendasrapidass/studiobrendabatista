@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SERVICES, ORDER_BUMPS_NAMES, isDayAllowed, WHATSAPP_NUMBER, generateWhatsAppUrl, formatPhone, getBookingDuration, ScheduleBlock } from '@/lib/types';
-import { addBooking, getBookings, getBlocks } from '@/lib/bookingStore';
+import { addBooking, getBookings, getBlocks, getLocalWeekdaySlots, saveLocalWeekdaySlots, getLocalDateSlots, saveLocalDateSlots } from '@/lib/bookingStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -77,8 +77,8 @@ const BookingSection = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [googleBookings, setGoogleBookings] = useState<Booking[]>([]);
   const [googleBlocks, setGoogleBlocks] = useState<ScheduleBlock[]>([]);
-  const [weekdaySlots, setWeekdaySlots] = useState<{ weekday: number; time: string }[]>([]);
-  const [dateSlots, setDateSlots] = useState<{ selected_date: string; time: string }[]>([]);
+  const [weekdaySlots, setWeekdaySlots] = useState<{ weekday: number; time: string }[]>(getLocalWeekdaySlots());
+  const [dateSlots, setDateSlots] = useState<{ selected_date: string; time: string }[]>(getLocalDateSlots());
   const [loadingTimes, setLoadingTimes] = useState(false);
 
   // Load schedule events directly from the API on selectedDate change to act as real-time source of truth
@@ -125,8 +125,11 @@ const BookingSection = () => {
     const dateStr = format(selectedDate, 'dd/MM/yyyy');
     const dateIsoStr = format(selectedDate, 'yyyy-MM-dd');
     
+    const effectiveDateSlots = dateSlots.length > 0 ? dateSlots : getLocalDateSlots();
+    const effectiveWeekdaySlots = weekdaySlots.length > 0 ? weekdaySlots : getLocalWeekdaySlots();
+
     // 1. Check Date Specific Whitelist (ex: Calendar Exceptions)
-    const dateSpecific = dateSlots
+    const dateSpecific = effectiveDateSlots
       .filter((s) => s.selected_date === dateIsoStr)
       .map((s) => s.time)
       .sort((a, b) => {
@@ -137,8 +140,8 @@ const BookingSection = () => {
 
     // 2. Check Weekday Whitelist if no date specific slots
     const dayOfWeek = selectedDate.getDay();
-    const weekdaySpecific = weekdaySlots
-      .filter((s) => s.weekday === dayOfWeek)
+    const weekdaySpecific = effectiveWeekdaySlots
+      .filter((s) => Number(s.weekday) === Number(dayOfWeek))
       .map((s) => s.time)
       .sort((a, b) => {
         const [ha, ma] = a.split(':').map(Number);
@@ -219,11 +222,21 @@ const BookingSection = () => {
     };
 
     const localSlots = calculateLocalSlots();
-    let finalSlots = localSlots;
-    if (!finalSlots || finalSlots.length === 0) {
+    const hasConfiguredSlotsForDay = baseTimes.length > 0;
+    const hasAnyConfiguredSlots = effectiveWeekdaySlots.length > 0 || effectiveDateSlots.length > 0;
+
+    let finalSlots: string[] = [];
+    if (hasConfiguredSlotsForDay) {
+      // Brenda configurou horários para este dia -> Respeitar ESTRITAMENTE a agenda dela
+      finalSlots = localSlots;
+    } else if (!hasAnyConfiguredSlots) {
+      // Se o estúdio nunca configurou nenhum horário (primeira inicialização do sistema)
       finalSlots = dayOfWeek === 6
         ? ['08:30', '09:30', '10:30', '11:30', '13:00', '14:00', '15:30', '16:30']
         : ['08:30', '09:30', '10:30', '11:30', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+    } else {
+      // O estúdio tem horários configurados, mas este dia não possui horários cadastrados (Dia Fechado)
+      finalSlots = [];
     }
     setAvailableTimes(finalSlots);
   }, [selectedDate, selectedService, extras, totalDuration, googleBookings, googleBlocks, weekdaySlots, dateSlots]);

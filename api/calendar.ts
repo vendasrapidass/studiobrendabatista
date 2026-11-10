@@ -13,8 +13,8 @@ const auth = new google.auth.GoogleAuth({
 const calendar = google.calendar({ version: 'v3', auth });
 
 // Configuração do Supabase Client
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_PUBLIC_SUPABASE_ANON_KEY || '';
 const isDbConfigured = !!(supabaseUrl && !supabaseUrl.includes('SUA_CHAVE_AQUI') && supabaseKey && !supabaseKey.includes('SUA_CHAVE_AQUI'));
 
 const supabase = createClient(
@@ -456,12 +456,22 @@ export default async function handler(req: any, res: any) {
 
       if (type === 'add_slot') {
         const { weekday, time } = req.body;
+        const numWeekday = Number(weekday);
         try {
-          const { error } = await supabase
+          const { data: existing } = await supabase
             .from('weekday_slots')
-            .insert([{ weekday, time }], { onConflict: 'weekday,time', ignoreDuplicates: true });
+            .select('id')
+            .eq('weekday', numWeekday)
+            .eq('time', time)
+            .maybeSingle();
+
+          if (!existing) {
+            const { error } = await supabase
+              .from('weekday_slots')
+              .insert([{ weekday: numWeekday, time }]);
+            if (error) throw error;
+          }
           
-          if (error) throw error;
           const updated = await getUpdatedSlots();
           return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
@@ -476,7 +486,7 @@ export default async function handler(req: any, res: any) {
           const { error } = await supabase
             .from('weekday_slots')
             .delete()
-            .eq('weekday', weekday)
+            .eq('weekday', Number(weekday))
             .eq('time', time);
           if (error) throw error;
           const updated = await getUpdatedSlots();
@@ -493,7 +503,7 @@ export default async function handler(req: any, res: any) {
           const { error } = await supabase
             .from('weekday_slots')
             .delete()
-            .eq('weekday', weekday);
+            .eq('weekday', Number(weekday));
           if (error) throw error;
           const updated = await getUpdatedSlots();
           return res.status(200).json({ success: true, ...updated });
@@ -540,11 +550,20 @@ export default async function handler(req: any, res: any) {
       if (type === 'add_date_slot') {
         const { selected_date, time } = req.body;
         try {
-          const { error } = await supabase
+          const { data: existing } = await supabase
             .from('date_specific_slots')
-            .insert([{ selected_date, time }], { onConflict: 'selected_date,time', ignoreDuplicates: true });
+            .select('id')
+            .eq('selected_date', selected_date)
+            .eq('time', time)
+            .maybeSingle();
+
+          if (!existing) {
+            const { error } = await supabase
+              .from('date_specific_slots')
+              .insert([{ selected_date, time }]);
+            if (error) throw error;
+          }
           
-          if (error) throw error;
           const updated = await getUpdatedSlots();
           return res.status(200).json({ success: true, ...updated });
         } catch (err: any) {
