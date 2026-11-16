@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 const LocationSection = () => {
   const handleDirections = () => {
-    window.open('https://www.google.com/maps/dir/?api=1&destination=-25.472333,-49.570000', '_blank');
+    window.open('https://www.google.com/maps/dir/?api=1&destination=R.+Teodoro+Augustyn,+6811+-+Vila+Campesi,+Campo+Largo+-+PR', '_blank');
   };
 
   return (
@@ -26,7 +26,7 @@ const LocationSection = () => {
       >
         <div className="h-64 md:h-80 rounded-2xl overflow-hidden">
           <iframe
-            src="https://maps.google.com/maps?q=-25.472333,-49.570000&t=&z=16&ie=UTF8&iwloc=&output=embed"
+            src="https://maps.google.com/maps?q=R.%20Teodoro%20Augustyn%2C%206811%20-%20Vila%20Campesi%2C%20Campo%20Largo%20-%20PR&t=&z=16&ie=UTF8&iwloc=&output=embed"
             width="100%"
             height="100%"
             style={{ border: 0 }}
@@ -52,7 +52,7 @@ const LocationSection = () => {
 
         <div className="text-center">
           <p className="font-bold text-lg">Studio Brenda Batista</p>
-          <p className="text-sm text-muted-foreground">Rua Teodoro Augustyn, nº 365 • Vila Itaqui<br/>Campo Largo - PR</p>
+          <p className="text-sm text-muted-foreground">R. Teodoro Augustyn, nº 6811 • Vila Campesi<br/>Campo Largo - PR</p>
         </div>
       </motion.div>
     </section>

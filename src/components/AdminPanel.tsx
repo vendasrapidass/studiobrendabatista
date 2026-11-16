@@ -483,7 +483,7 @@ const AdminPanel = () => {
 
   // Accept booking → send WhatsApp confirmation, mark as accepted
   const handleAccept = (booking: Booking) => {
-    const msg = `✨ *STUDIO BRENDA BATISTA* ✨\n\nOlá *${booking.name}*! 👋\n\nSeu agendamento foi *CONFIRMADO* com sucesso! ✅\n\n📋 *Serviço:* ${booking.service}\n💰 *Valor:* R$ ${booking.price},00\n📅 *Data:* ${booking.date}\n🕐 *Horário:* ${booking.time}\n\n📍 *Endereço:* Rua Teodoro Augustyn, nº 365 - Vila Itaqui, Campo Largo - PR\n\nEstamos te esperando! 🌸\nAté lá! 🤝`;
+    const msg = `✨ *STUDIO BRENDA BATISTA* ✨\n\nOlá *${booking.name}*! 👋\n\nSeu agendamento foi *CONFIRMADO* com sucesso! ✅\n\n📋 *Serviço:* ${booking.service}\n💰 *Valor:* R$ ${booking.price},00\n📅 *Data:* ${booking.date}\n🕐 *Horário:* ${booking.time}\n\n📍 *Endereço:* R. Teodoro Augustyn, nº 6811 - Vila Campesi, Campo Largo - PR\n\nEstamos te esperando! 🌸\nAté lá! 🤝`;
     
     if (booking.phone) {
       window.open(generateWhatsAppUrl(booking.phone, msg), '_blank');
