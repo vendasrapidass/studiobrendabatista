@@ -19,13 +19,13 @@ const HeroSection = () => {
       <img
         src="https://i.imgur.com/PYZDw6b.jpeg"
         alt="STUDIO BRENDA BATISTA"
-        className="absolute inset-0 w-full h-full object-cover opacity-25"
+        className="absolute inset-0 w-full h-full object-cover opacity-45 contrast-[1.06] saturate-[1.08]"
         loading="eager"
         fetchPriority="high"
         width={1069}
         height={1600}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/45 to-background/15" />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}

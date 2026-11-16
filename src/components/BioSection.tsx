@@ -14,14 +14,14 @@ const BioSection = () => {
         >
           <div className="relative w-72 h-96 md:w-80 md:h-[450px]">
             {/* Background glowing frame */}
-            <div className="absolute inset-0 bg-zinc-200/60 rounded-3xl blur-xl -translate-x-2 translate-y-2" />
-            <div className="absolute inset-0 border border-zinc-200 rounded-3xl -translate-x-3 translate-y-3 pointer-events-none" />
+            <div className="absolute inset-0 bg-zinc-900/5 rounded-3xl blur-xl -translate-x-2 translate-y-2" />
+            <div className="absolute inset-0 border-2 border-zinc-900/15 rounded-3xl -translate-x-3 translate-y-3 pointer-events-none shadow-sm" />
             
             {/* Main Image */}
             <img
               src="https://i.imgur.com/MmSADCD.jpeg"
               alt="Brenda Batista - Lash Designer"
-              className="w-full h-full object-cover rounded-3xl card-shadow border border-border"
+              className="w-full h-full object-cover rounded-3xl shadow-2xl border border-zinc-900/10 contrast-[1.04] saturate-[1.06] brightness-[1.02]"
               loading="lazy"
               width={320}
               height={450}
