@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 const LocationSection = () => {
   const handleDirections = () => {
-    window.open('https://www.google.com/maps/dir/?api=1&destination=Edifício+Ilha+de+Manhattan+-+Campo+Largo', '_blank');
+    window.open('https://www.google.com/maps/dir/?api=1&destination=-25.472333,-49.570000', '_blank');
   };
 
   return (
@@ -26,7 +26,7 @@ const LocationSection = () => {
       >
         <div className="h-64 md:h-80 rounded-2xl overflow-hidden">
           <iframe
-            src="https://maps.google.com/maps?q=Edifício%20Ilha%20de%20Manhattan%20-%20Campo%20Largo&t=&z=16&ie=UTF8&iwloc=&output=embed"
+            src="https://maps.google.com/maps?q=-25.472333,-49.570000&t=&z=16&ie=UTF8&iwloc=&output=embed"
             width="100%"
             height="100%"
             style={{ border: 0 }}
@@ -51,8 +51,8 @@ const LocationSection = () => {
         />
 
         <div className="text-center">
-          <p className="font-bold text-lg">Edifício Ilha de Manhattan - Campo Largo</p>
-          <p className="text-sm text-muted-foreground">Av. Vereador Arlindo Chemin, nº 50 • Sala 115 – Piso 1, à esquerda.<br/>Centro, Campo Largo - PR</p>
+          <p className="font-bold text-lg">Studio Brenda Batista</p>
+          <p className="text-sm text-muted-foreground">Rua Teodoro Augustyn, nº 365 • Vila Itaqui<br/>Campo Largo - PR</p>
         </div>
       </motion.div>
     </section>

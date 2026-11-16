@@ -41,10 +41,10 @@ const TestimonialsSection = () => {
           transition={{ duration: 0.5 }}
           className="flex items-center justify-center gap-2 mb-10"
         >
-          <h2 className="text-3xl font-bold text-primary">Avaliações</h2>
+          <h2 className="text-3xl font-bold text-foreground">Avaliações</h2>
           <div className="flex gap-0.5">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Star key={i} className="w-5 h-5 fill-primary text-primary" />
+              <Star key={i} className="w-5 h-5 fill-zinc-900 text-zinc-900" />
             ))}
           </div>
         </motion.div>
@@ -60,7 +60,7 @@ const TestimonialsSection = () => {
           {TESTIMONIALS.map((img, i) => (
             <div
               key={i}
-              className="flex-shrink-0 h-[64px] md:h-[80px] flex items-center justify-center px-4 bg-zinc-900/50 border border-zinc-800/40 rounded-2xl shadow-md hover:border-primary/20 transition-all duration-300"
+              className="flex-shrink-0 h-[64px] md:h-[80px] flex items-center justify-center px-4 bg-card border border-border rounded-2xl shadow-sm hover:border-zinc-400 transition-all duration-300"
             >
               <img
                 src={img}

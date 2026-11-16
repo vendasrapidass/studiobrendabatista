@@ -12,7 +12,7 @@ const ContactSection = () => (
       className="relative overflow-hidden rounded-3xl border border-border"
     >
       {/* Background glow effects */}
-      <div className="absolute -top-20 -right-20 w-60 h-60 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -top-20 -right-20 w-60 h-60 bg-zinc-200/50 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-success/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative glass p-10 md:p-14">
@@ -24,7 +24,7 @@ const ContactSection = () => (
           transition={{ duration: 0.4, delay: 0.1 }}
           className="flex justify-center mb-6"
         >
-          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium">
+          <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-secondary border border-border text-foreground text-sm font-medium">
             <Sparkles className="w-4 h-4" />
             Atendimento rápido
           </span>
@@ -39,7 +39,7 @@ const ContactSection = () => (
           className="text-3xl md:text-4xl font-bold text-center mb-3"
         >
           Tem alguma{' '}
-          <span className="text-primary">dúvida</span>?
+          <span className="text-foreground underline decoration-zinc-300 underline-offset-4">dúvida</span>?
         </motion.h3>
 
         <motion.p

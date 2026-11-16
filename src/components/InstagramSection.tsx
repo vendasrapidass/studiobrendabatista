@@ -12,7 +12,7 @@ const InstagramSection = () => (
     >
       <h2 className="text-2xl md:text-3xl font-bold text-center">Siga no Instagram</h2>
       <div className="flex justify-center py-2">
-        <Instagram className="w-20 h-20 text-primary hover:scale-110 transition-transform duration-300 stroke-[1.5]" />
+        <Instagram className="w-20 h-20 text-foreground hover:scale-110 transition-transform duration-300 stroke-[1.5]" />
       </div>
       <a
         href="https://www.instagram.com/brenda_batista.lash/"

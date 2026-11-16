@@ -14,8 +14,8 @@ const BioSection = () => {
         >
           <div className="relative w-72 h-96 md:w-80 md:h-[450px]">
             {/* Background glowing frame */}
-            <div className="absolute inset-0 bg-primary/10 rounded-3xl blur-xl -translate-x-2 translate-y-2" />
-            <div className="absolute inset-0 border border-primary/20 rounded-3xl -translate-x-3 translate-y-3 pointer-events-none" />
+            <div className="absolute inset-0 bg-zinc-200/60 rounded-3xl blur-xl -translate-x-2 translate-y-2" />
+            <div className="absolute inset-0 border border-zinc-200 rounded-3xl -translate-x-3 translate-y-3 pointer-events-none" />
             
             {/* Main Image */}
             <img
@@ -38,7 +38,7 @@ const BioSection = () => {
           className="space-y-6 text-left"
         >
           <div className="space-y-2">
-            <span className="text-xs uppercase tracking-widest text-primary font-bold">A Profissional</span>
+            <span className="text-xs uppercase tracking-widest text-muted-foreground font-bold">A Profissional</span>
             <h2 className="text-3xl md:text-4xl font-bold">Sobre mim 🎓</h2>
           </div>
           

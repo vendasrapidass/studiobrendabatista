@@ -522,13 +522,13 @@ const BookingSection = () => {
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                       <div className="absolute bottom-0 left-0 right-0 p-4 text-left">
-                        <h3 className="font-bold text-sm md:text-base text-white group-hover:text-primary transition-colors">{s.name}</h3>
+                        <h3 className="font-bold text-sm md:text-base text-white">{s.name}</h3>
                         <p className="text-xs text-white/70 mt-1">
                           {s.options 
                             ? `${Math.min(...s.options.map(o => o.time))} - ${Math.max(...s.options.map(o => o.time))} min` 
                             : `${s.time} min`}
                         </p>
-                        <span className="text-lg font-mono font-bold mt-1 text-primary block">
+                        <span className="text-lg font-mono font-bold mt-1 text-white block">
                           {s.options 
                             ? `R$ ${Math.min(...s.options.map(o => o.price))} - R$ ${Math.max(...s.options.map(o => o.price))}` 
                             : `R$ ${s.price}`}
@@ -564,7 +564,7 @@ const BookingSection = () => {
                         className={cn(
                           "flex items-center justify-between p-4 rounded-2xl border transition-all text-left",
                           isSelected 
-                            ? "border-primary bg-primary/5 shadow-[0_4px_20px_-5px_hsl(45_97%_54%/0.3)]" 
+                            ? "border-primary bg-primary/5 shadow-sm" 
                             : "border-border bg-card hover:border-primary/50 hover:shadow-sm"
                         )}
                       >
@@ -589,7 +589,7 @@ const BookingSection = () => {
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={handleConfirmExtras}
-                    className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl transition-all hover:shadow-[0_0_25px_-5px_hsl(45_97%_54%/0.5)] hover:scale-[1.02] active:scale-[0.98]"
+                    className="w-full py-4 bg-primary text-primary-foreground font-bold rounded-xl transition-all shadow-md hover:scale-[1.02] active:scale-[0.98]"
                   >
                     {extras.length > 0 ? 'Confirmar Extras e Avançar' : 'Avançar sem extras'}
                   </button>
@@ -821,23 +821,23 @@ const BookingSection = () => {
               transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               className="relative w-full max-w-md my-4"
               style={{
-                background: 'linear-gradient(135deg, #1a1208 0%, #0d0d0d 50%, #1a1208 100%)',
+                background: '#ffffff',
                 borderRadius: '28px',
                 padding: '2px',
-                boxShadow: '0 0 60px rgba(180,140,60,0.25), 0 20px 60px rgba(0,0,0,0.8)',
+                boxShadow: '0 20px 50px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08)',
               }}
             >
               {/* Golden border gradient wrapper */}
               <div
                 style={{
-                  background: 'linear-gradient(135deg, #c9a227, #f0d060, #a07820, #f0d060, #c9a227)',
+                  background: '#ffffff',
                   borderRadius: '28px',
                   padding: '2px',
                 }}
               >
                 <div
                   style={{
-                    background: 'linear-gradient(160deg, #1c1407 0%, #0a0a0a 60%, #1c1407 100%)',
+                    background: '#ffffff',
                     borderRadius: '26px',
                     padding: '32px 28px',
                   }}
@@ -845,33 +845,33 @@ const BookingSection = () => {
                   {/* Close button */}
                   <button
                     onClick={() => { setShowPixModal(false); setComprovanteFile(null); }}
-                    className="absolute top-5 right-5 text-yellow-600/70 hover:text-yellow-400 transition-colors z-10"
+                    className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900 transition-colors z-10"
                   >
                     <X className="w-5 h-5" />
                   </button>
 
                   {/* Header */}
                   <div className="text-center mb-6">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ background: 'linear-gradient(135deg, #c9a227, #f0d060)' }}>
-                      <span className="text-black font-bold text-lg">✦</span>
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3" style={{ background: '#18181b' }}>
+                      <span className="text-white font-bold text-lg">✦</span>
                     </div>
-                    <h3 className="text-xl font-bold text-yellow-300 tracking-wide">Garantia de Horário</h3>
-                    <p className="text-yellow-600/80 text-sm mt-1 font-medium">Sinal de Agendamento</p>
+                    <h3 className="text-xl font-bold text-zinc-900 tracking-wide">Garantia de Horário</h3>
+                    <p className="text-zinc-500 text-sm mt-1 font-medium">Sinal de Agendamento</p>
                   </div>
 
                   {/* Info notice */}
-                  <div className="rounded-xl p-3 mb-5 text-center text-xs leading-relaxed" style={{ background: 'rgba(201,162,39,0.1)', border: '1px solid rgba(201,162,39,0.25)', color: '#d4a843' }}>
+                  <div className="rounded-xl p-3 mb-5 text-center text-xs leading-relaxed" style={{ background: '#f4f4f5', border: '1px solid #e4e4e7', color: '#3f3f46' }}>
                     Pedimos um sinal de <strong>R$ {SINAL_VALUE},00</strong> via Pix para garantir seu horário.<br />
-                    <span style={{ color: '#a07820' }}>O valor é descontado no total do serviço no dia do atendimento.</span>
+                    <span style={{ color: '#71717a' }}>O valor é descontado no total do serviço no dia do atendimento.</span>
                     <div className="mt-2 flex items-center justify-center gap-1.5 opacity-90">
-                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#c9a227' }}></span>
-                      <span className="font-medium" style={{ color: '#c9a227' }}>Expira em <span className="font-mono">{formatTime(timeLeft)}</span></span>
+                      <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#18181b' }}></span>
+                      <span className="font-medium" style={{ color: '#18181b' }}>Expira em <span className="font-mono">{formatTime(timeLeft)}</span></span>
                     </div>
                   </div>
 
                   {/* QR Code */}
                   <div className="flex justify-center mb-5">
-                    <div className="p-3 rounded-2xl" style={{ background: '#ffffff', boxShadow: '0 0 30px rgba(201,162,39,0.3)' }}>
+                    <div className="p-3 rounded-2xl" style={{ background: '#ffffff', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e4e4e7' }}>
                       <img
                         src="/pix-brenda.png"
                         alt="QR Code Pix - Brenda Coelho Batista"
@@ -883,17 +883,17 @@ const BookingSection = () => {
                     </div>
                   </div>
 
-                  <p className="text-center text-xs text-yellow-600/70 mb-4">Brenda Coelho Batista • Pix Aleatório</p>
+                  <p className="text-center text-xs text-zinc-500 mb-4">Brenda Coelho Batista • Pix Aleatório</p>
 
                   {/* Pix key copy */}
-                  <div className="rounded-xl p-3 mb-5 flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(201,162,39,0.2)' }}>
-                    <span className="flex-1 text-xs font-mono truncate" style={{ color: '#c9a227' }}>{PIX_KEY}</span>
+                  <div className="rounded-xl p-3 mb-5 flex items-center gap-2" style={{ background: '#f4f4f5', border: '1px solid #e4e4e7' }}>
+                    <span className="flex-1 text-xs font-mono truncate" style={{ color: '#18181b' }}>{PIX_KEY}</span>
                     <button
                       onClick={handlePixCopy}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shrink-0"
                       style={{
-                        background: pixCopiado ? 'rgba(74,222,128,0.15)' : 'linear-gradient(135deg, #c9a227, #f0d060)',
-                        color: pixCopiado ? '#4ade80' : '#000',
+                        background: pixCopiado ? '#dcfce7' : '#18181b',
+                        color: pixCopiado ? '#166534' : '#ffffff',
                         border: pixCopiado ? '1px solid #4ade80' : 'none',
                       }}
                     >
@@ -903,7 +903,7 @@ const BookingSection = () => {
 
                   {/* Upload comprovante */}
                   <div className="mb-5">
-                    <p className="text-xs font-semibold mb-2 uppercase tracking-widest" style={{ color: '#c9a227' }}>Comprovante do Pix *</p>
+                    <p className="text-xs font-semibold mb-2 uppercase tracking-widest" style={{ color: '#18181b' }}>Comprovante do Pix *</p>
                     <div
                       onClick={() => fileInputRef.current?.click()}
                       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
@@ -911,8 +911,8 @@ const BookingSection = () => {
                       onDrop={(e) => { e.preventDefault(); setIsDragOver(false); handleFileSelect(e.dataTransfer.files[0]); }}
                       className="rounded-xl p-5 text-center cursor-pointer transition-all"
                       style={{
-                        background: isDragOver ? 'rgba(201,162,39,0.12)' : comprovanteFile ? 'rgba(74,222,128,0.08)' : 'rgba(255,255,255,0.03)',
-                        border: `2px dashed ${isDragOver ? '#c9a227' : comprovanteFile ? '#4ade80' : 'rgba(201,162,39,0.3)'}`,
+                        background: isDragOver ? '#f4f4f5' : comprovanteFile ? '#f0fdf4' : '#fafafa',
+                        border: `2px dashed ${isDragOver ? '#18181b' : comprovanteFile ? '#22c55e' : '#d4d4d8'}`,
                       }}
                     >
                       {comprovanteFile ? (
@@ -927,9 +927,9 @@ const BookingSection = () => {
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-2">
-                          <Upload className="w-7 h-7" style={{ color: '#c9a227' }} />
-                          <p className="text-xs" style={{ color: '#a07820' }}>Arraste ou clique para anexar</p>
-                          <p className="text-xs" style={{ color: '#5a4010' }}>JPG, PNG ou PDF • Máx 10MB</p>
+                          <Upload className="w-7 h-7 text-zinc-700" />
+                          <p className="text-xs text-zinc-700 font-medium">Arraste ou clique para anexar</p>
+                          <p className="text-xs text-zinc-400">JPG, PNG ou PDF • Máx 10MB</p>
                         </div>
                       )}
                     </div>
@@ -949,11 +949,11 @@ const BookingSection = () => {
                     className="w-full py-4 rounded-xl font-bold text-sm tracking-wide transition-all"
                     style={{
                       background: comprovanteFile && !comprovanteUploading
-                        ? 'linear-gradient(135deg, #c9a227, #f0d060, #c9a227)'
-                        : 'rgba(255,255,255,0.08)',
-                      color: comprovanteFile && !comprovanteUploading ? '#000' : '#555',
+                        ? '#18181b'
+                        : '#f4f4f5',
+                      color: comprovanteFile && !comprovanteUploading ? '#ffffff' : '#a1a1aa',
                       cursor: comprovanteFile && !comprovanteUploading ? 'pointer' : 'not-allowed',
-                      boxShadow: comprovanteFile && !comprovanteUploading ? '0 0 30px rgba(201,162,39,0.4)' : 'none',
+                      boxShadow: comprovanteFile && !comprovanteUploading ? '0 4px 15px rgba(0,0,0,0.15)' : 'none',
                     }}
                   >
                     {comprovanteUploading ? (
@@ -967,7 +967,7 @@ const BookingSection = () => {
                   </button>
 
                   {!comprovanteFile && (
-                    <p className="text-center text-xs mt-3" style={{ color: '#5a4010' }}>
+                    <p className="text-center text-xs mt-3 text-zinc-400">
                       Anexe o comprovante para liberar o botão
                     </p>
                   )}

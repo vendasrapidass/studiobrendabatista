@@ -19,13 +19,13 @@ const HeroSection = () => {
       <img
         src="https://i.imgur.com/PYZDw6b.jpeg"
         alt="STUDIO BRENDA BATISTA"
-        className="absolute inset-0 w-full h-full object-cover opacity-30"
+        className="absolute inset-0 w-full h-full object-cover opacity-25"
         loading="eager"
         fetchPriority="high"
         width={1069}
         height={1600}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/20" />
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -40,7 +40,7 @@ const HeroSection = () => {
 
         <h1 className="text-4xl md:text-7xl font-bold mb-6">
           Realce a sua{' '}
-          <span className="text-primary">beleza natural.</span>
+          <span className="text-foreground underline decoration-zinc-300 underline-offset-8">beleza natural.</span>
         </h1>
         <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
           Cílios e sobrancelhas impecáveis, elegância e o cuidado exclusivo que você merece. Agende sua experiência no STUDIO BRENDA BATISTA.
@@ -50,9 +50,9 @@ const HeroSection = () => {
           onClick={scrollToBooking}
           animate={{
             boxShadow: [
-              '0 0 20px hsl(45 70% 52% / 0.35), 0 0 40px hsl(45 70% 52% / 0.2)',
-              '0 0 35px hsl(45 70% 52% / 0.65), 0 0 70px hsl(45 70% 52% / 0.4)',
-              '0 0 20px hsl(45 70% 52% / 0.35), 0 0 40px hsl(45 70% 52% / 0.2)',
+              '0 4px 14px 0 rgba(0,0,0,0.12)',
+              '0 8px 24px rgba(0,0,0,0.22)',
+              '0 4px 14px 0 rgba(0,0,0,0.12)',
             ],
             scale: [1, 1.03, 1],
           }}
